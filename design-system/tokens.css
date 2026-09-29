@@ -1,0 +1,73 @@
+/* Generated from tokens.json. */
+:root, [data-theme="void"] {
+  --void: #070a14;
+  --void-2: #0c1120;
+  --panel: #0f1729;
+  --panel-2: #16223b;
+  --line: #2c3f66;
+  --line-strong: #5572a3;
+  --ink: #e6e9f2;
+  --ink-dim: #8e9bb5;
+  --ink-faint: #7a87a4;
+  --signal: #5ec8ff;
+  --on-signal: #04121c;
+  --armor-white: #d8dbe6;
+  --armor-navy: #33436e;
+  --armor-red: #c23434;
+  --armor-gold: #f0b440;
+  --on-gold: #1a1204;
+  --alert: #ff6b5e;
+  --chrome: #a0b0c0;
+  --chrome-deep: #102040;
+  --star-warm: #fff1d6;
+  --star-cool: #cfe3ff;
+  --nebula-violet: #3a2f6b;
+  --nebula-teal: #1e5a6e;
+  --planet-rust: #b5532f;
+  --thrust: #8fd8ff;
+}
+[data-theme="hangar"] {
+  --void: #e4e7ee;
+  --void-2: #d6dae4;
+  --panel: #f4f5f8;
+  --panel-2: #ffffff;
+  --line: #c3c9d6;
+  --line-strong: #7d8aa6;
+  --ink: #0f1a33;
+  --ink-dim: #44506b;
+  --ink-faint: #5a6581;
+  --signal: #0a6aa8;
+  --on-signal: #ffffff;
+  --armor-white: #d8dbe6;
+  --armor-navy: #33436e;
+  --armor-red: #b02a2a;
+  --armor-gold: #8a5a00;
+  --on-gold: #ffffff;
+  --alert: #b02a2a;
+  --chrome: #5d6c80;
+  --chrome-deep: #102040;
+}
+:root {
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 24px;
+  --space-6: 32px;
+  --radius-none: 0;
+  --cut-xs: 4px;
+  --cut-sm: 8px;
+  --cut-md: 14px;
+  --cut-lg: 24px;
+  --dur-line: 120ms;
+  --dur-expand: 160ms;
+  --dur-settle: 140ms;
+  --dur-close: 180ms;
+  --ease-snap: cubic-bezier(0.2, 0.9, 0.1, 1);
+  --glow-signal: 0 0 0 1px rgba(94, 200, 255, 0.55), 0 0 18px rgba(94, 200, 255, 0.25);
+  --shadow-window: 0 18px 48px rgba(0, 0, 0, 0.55);
+  --font-display: "Michroma", "Eurostile", ui-sans-serif, system-ui, sans-serif;
+  --font-ui: "Chakra Petch", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "Share Tech Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+  --font-system: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+}

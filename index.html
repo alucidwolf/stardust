@@ -1,0 +1,200 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <meta name="color-scheme" content="dark" />
+    <title>Stardust</title>
+    <meta
+      name="description"
+      content="A calm procedurally generated sector to drift through."
+    />
+    <meta name="theme-color" content="#070a14" />
+
+    <!--
+      Michroma for titles, Chakra Petch for everything read at a glance, Share
+      Tech Mono for readouts and serials. Linked here rather than imported from
+      the stylesheet so the request goes out with the document instead of
+      waiting for the entry module to run.
+
+      The boot screen below deliberately uses none of them.
+    -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      rel="stylesheet"
+      href="https://fonts.googleapis.com/css2?family=Michroma&family=Chakra+Petch:wght@400;500;600;700&family=Share+Tech+Mono&display=swap"
+    />
+
+    <!--
+      Inline, and deliberately so. Everything else about this page arrives too
+      late to prevent a flash: the stylesheet is imported from the entry module,
+      so in development it is injected only once the JavaScript has run, and
+      until then the browser paints a white page with the markup stacked up raw.
+
+      So the first paint has to be right with nothing loaded at all, which means
+      no images and no webfonts: the boot screen is a colour, some rules and a
+      handful of monospace lines, in whatever mono the machine already has.
+    -->
+    <style>
+      html,
+      body {
+        margin: 0;
+        height: 100%;
+        background: #070a14;
+      }
+
+      #boot {
+        position: fixed;
+        inset: 0;
+        z-index: 20;
+        display: grid;
+        place-items: center;
+        padding: 24px;
+        /* A star's light falling off into deep blue. Never black. */
+        background:
+          radial-gradient(
+            120% 70% at 50% -10%,
+            rgba(94, 200, 255, 0.16),
+            rgba(94, 200, 255, 0) 60%
+          ),
+          linear-gradient(180deg, #0c1120 0%, #070a14 70%);
+        opacity: 1;
+        transition: opacity 0.7s ease;
+      }
+
+      #boot[data-done="true"] {
+        opacity: 0;
+        pointer-events: none;
+      }
+
+      .boot {
+        display: grid;
+        gap: 12px;
+        width: min(26rem, 100%);
+      }
+
+      .boot__lines {
+        margin: 0;
+        padding: 0;
+        list-style: none;
+        font:
+          400 0.74rem/1.6 ui-monospace,
+          SFMono-Regular,
+          Menlo,
+          monospace;
+        letter-spacing: 0.04em;
+        color: #8e9bb5;
+      }
+
+      .boot__lines li {
+        display: flex;
+        justify-content: space-between;
+        gap: 1rem;
+        opacity: 0;
+        animation: boot-settle 120ms ease-out forwards;
+      }
+
+      /* Ninety milliseconds apart, as the design system specifies. */
+      .boot__lines li:nth-child(1) { animation-delay: 0ms; }
+      .boot__lines li:nth-child(2) { animation-delay: 90ms; }
+      .boot__lines li:nth-child(3) { animation-delay: 180ms; }
+      .boot__lines li:nth-child(4) { animation-delay: 270ms; }
+      .boot__lines li:nth-child(5) { animation-delay: 360ms; }
+
+      .boot__lines li span {
+        color: #5ec8ff;
+      }
+
+      .boot__bar {
+        display: grid;
+        grid-template-columns: repeat(16, 1fr);
+        gap: 3px;
+      }
+
+      /* Sheared, so the segments read as instrument marks rather than as a
+         progress bar from an operating system. */
+      .boot__bar i {
+        height: 6px;
+        background: #2c3f66;
+        transform: skewX(-18deg);
+      }
+
+      .boot__bar i.on {
+        background: #5ec8ff;
+      }
+
+      @keyframes boot-settle {
+        from {
+          opacity: 0;
+          transform: translateY(3px);
+        }
+        to {
+          opacity: 1;
+          transform: none;
+        }
+      }
+
+      /*
+        Asked for less movement: the lines are simply there. They are still
+        staggered in the markup, but nothing slides and nothing waits.
+      */
+      @media (prefers-reduced-motion: reduce) {
+        #boot {
+          transition-duration: 0.01ms;
+        }
+
+        .boot__lines li {
+          animation: none;
+          opacity: 1;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <!--
+      First element in the document, so it is covering the page from the first
+      paint rather than arriving after something else has already been seen.
+
+      Five lines, the last of which is LAUNCH. This is the one place in Stardust
+      where the full "system booting" register is allowed.
+    -->
+    <div id="boot" role="status" aria-label="Launching">
+      <div class="boot">
+        <ul class="boot__lines">
+          <li>REACTOR<span>OK</span></li>
+          <li>GYRO ARRAY<span>OK</span></li>
+          <li>NAV LATTICE<span>OK</span></li>
+          <li>HULL SEAL<span>OK</span></li>
+          <li>LAUNCH<span>OK</span></li>
+        </ul>
+        <div class="boot__bar" aria-hidden="true">
+          <i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i>
+          <i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i>
+          <i class="on"></i><i class="on"></i><i class="on"></i><i></i>
+          <i></i><i></i><i></i><i></i>
+        </div>
+      </div>
+    </div>
+
+    <canvas id="scene"></canvas>
+
+    <!--
+      Shown once over the opening drift, then gone. The poster carries the
+      wordmark, so the name is not repeated as text beside it.
+    -->
+    <div id="title-card" class="title-card">
+      <img
+        class="title-card__logo"
+        src="/stardust-logo.jpg"
+        alt=""
+        width="864"
+        height="1224"
+        decoding="async"
+      />
+      <p id="title-micro" class="micro"></p>
+    </div>
+
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
