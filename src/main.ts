@@ -142,6 +142,10 @@ function adoptUnit(chosen: UnitDef, announce = false): void {
 
   // A floor, not a reset — swapping units should not throw away whatever the
   // pilot had zoomed to.
+  // The one place the cruise multiplier is applied, so the readout, the engine
+  // glow and the distance actually covered can never disagree about it.
+  pilot.speedScale = chosen.speedScale;
+
   rig.ensureRoomFor(chosen.viewDistance);
   rememberUnit(chosen.id);
   // However the unit was changed — card, number key or Tab — the button and the
@@ -269,10 +273,11 @@ const loop = createLoop((dt, elapsed) => {
 
   pilot.update(dt, elapsed, command);
 
+  // Already carries the unit's own multiplier, so nothing here reapplies it.
   const rate = pilot.speed / FLIGHT.cruiseSpeed;
 
   if (rigged) {
-    rigged.update(elapsed, rate * (unit?.speedScale ?? 1), pilot.turnEffort);
+    rigged.update(elapsed, rate, pilot.turnEffort);
 
     if (swapSettle < 1) {
       swapSettle = Math.min(1, swapSettle + dt / SWAP_SETTLE);
@@ -295,7 +300,7 @@ const loop = createLoop((dt, elapsed) => {
   const bearing = ((THREE.MathUtils.radToDeg(pilot.yaw) % 360) + 360) % 360;
   hud.update(dt, input.idleTime, {
     heading: bearing,
-    speed: pilot.speed * (unit?.speedScale ?? 1),
+    speed: pilot.speed,
     piloted,
   });
 

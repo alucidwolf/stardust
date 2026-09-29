@@ -286,6 +286,47 @@ console.log("\nthe units, on the arrow keys");
   }
 }
 
+console.log("\nhow fast each one actually goes");
+{
+  /*
+    Measured as ground covered, never as the number in the table.
+
+    The speed scales used to be applied by each caller that wanted them — the
+    readout multiplied by one, the engine glow multiplied by one — and the line
+    that advances the position did not. All four units flew exactly the same
+    distance while the instruments confidently reported four different speeds.
+
+    A check on `unit.speedScale` would have passed that happily, because the
+    data was never wrong; only the behaviour was missing. So this one flies
+    each unit in a straight line and measures where it got to.
+  */
+  const flown = new Map<string, number>();
+
+  for (const unit of UNITS) {
+    const pilot = new Pilot();
+    pilot.speedScale = unit.speedScale;
+    const seconds = 10;
+    for (let i = 0; i < seconds / DT; i++) {
+      pilot.update(DT, i * DT, { yaw: 0, pitch: 0, turnRate: 0 });
+    }
+    const distance = pilot.position.length();
+    flown.set(unit.id, distance);
+
+    // Within a few percent of cruise × scale × time. The slow breath on speed
+    // is the only thing allowed to move it.
+    const expected = FLIGHT.cruiseSpeed * unit.speedScale * seconds;
+    const off = Math.abs(distance - expected) / expected;
+    check(off < 0.1, `${unit.name} flies at its own speed (${distance.toFixed(0)}, expected about ${expected.toFixed(0)})`);
+    console.log(`  ${unit.name.padEnd(12)} ${distance.toFixed(0)} in ten seconds  (scale ${unit.speedScale})`);
+  }
+
+  // And the fleet has to actually differ in the air, not just on paper.
+  const distances = [...flown.values()].sort((a, b) => a - b);
+  const range = distances[distances.length - 1]! / distances[0]!;
+  check(range > 1.6, `the fastest really outruns the slowest (${range.toFixed(2)}x)`);
+  console.log(`  spread        ${range.toFixed(2)}x fastest over slowest`);
+}
+
 if (failures.length > 0) {
   console.error(`\nSteering check failed (${failures.length}):`);
   for (const failure of failures) console.error(`  - ${failure}`);

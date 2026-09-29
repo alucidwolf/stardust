@@ -265,6 +265,12 @@ console.log("");
 
   // The four are meant to feel different. If two of them fly the same, the
   // choice is decoration.
+  //
+  // This checks the design data only, and that distinction once mattered: the
+  // speed scales were right here and reached nothing that moved, so every unit
+  // flew identically while this check passed. Whether they *reach* the flight
+  // is measured in verify:steering, by distance covered rather than by reading
+  // the numbers back.
   const speeds = UNITS.map((u) => u.speedScale).sort((a, b) => a - b);
   const turns = UNITS.map((u) => u.turnScale).sort((a, b) => a - b);
   check(speeds[speeds.length - 1]! / speeds[0]! > 1.6, "the fastest is clearly faster than the slowest");

@@ -39,6 +39,22 @@ export class Pilot {
   yaw = 0;
   pitch = 0;
   roll = 0;
+
+  /**
+   * The current unit's cruise multiplier.
+   *
+   * It lives here, on the one thing that actually moves, and `speed` below is
+   * the finished number with it already in. That is deliberate: it used to be
+   * applied by each caller that wanted it — the readout multiplied by it, the
+   * engine glow multiplied by it — and the one place that mattered, the line
+   * that advances the position, did not. Every unit flew at exactly the same
+   * speed while the instruments confidently reported four different ones.
+   *
+   * One number, read by everybody, is the only arrangement where they cannot
+   * disagree.
+   */
+  speedScale = 1;
+
   speed: number = FLIGHT.cruiseSpeed;
 
   /** How hard it is turning right now, for the engines and the speed streaks. */
@@ -89,7 +105,8 @@ export class Pilot {
     // --- Cruise --------------------------------------------------------------
     // A slow sine on speed keeps long stretches from looking metronomic.
     const breath = Math.sin((elapsed / FLIGHT.speedBreathPeriod) * TWO_PI);
-    this.speed = FLIGHT.cruiseSpeed * (1 + breath * FLIGHT.speedBreathAmount);
+    this.speed =
+      FLIGHT.cruiseSpeed * this.speedScale * (1 + breath * FLIGHT.speedBreathAmount);
 
     this.position.addScaledVector(this.forward(SCRATCH), this.speed * dt);
 
