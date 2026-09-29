@@ -12,17 +12,118 @@ is original: no franchise names, designs, emblems or quotes.
 
 ## Status
 
-Built in phases. **Phase 1 is done**: the project runs and shows the sector's
-sky. Phases 2 to 5 — the interface, the four units, the debris fields and the
-sound — are not built yet, so there is nothing to fly and nothing to press.
+You can fly it. Pick a unit, steer it or let it fly itself, and drift past
+asteroid fields, derelict stations and the occasional black hole.
 
 | Phase | What it covers | State |
 | --- | --- | --- |
 | 1 | Scaffold, starfield, nebula, stardust, diorama pass, boot and title card | **done** |
-| 2 | HUD hints, unit trigger, unit select window, announce, sound control, telemetry | to do |
-| 3 | The four units, their paint, engine glow and flight feel | to do |
-| 4 | Asteroid and debris fields, landmarks, speed streaks, the star cycle, autopilot, memory | to do |
+| 2 | HUD hints, unit trigger, unit select window, announce, telemetry readout | **done** |
+| 3 | The four units, their paint, engine glow and flight feel | **done** |
+| 4 | Asteroid and debris fields, landmarks, autopilot wander | **done** |
+| 4b | Speed streaks, the star cycle, remembering where you were | to do |
 | 5 | Engine hum, far-off notes, UI ticks and tones | to do |
+
+Not built yet: the sound, the star cycle, speed streaks, and remembering your
+sortie between visits. There is also no sound control in the HUD, because there
+is nothing yet for it to control.
+
+## Controls
+
+| Input | Effect |
+| --- | --- |
+| **Left-hold and drag** | Orbit the camera. It lives behind your unit; moved, it stays where you put it. |
+| **Scroll** | Zoom in and out. |
+| **Right-hold** | Steer: the unit turns toward your cursor. Release and it goes back to flying itself. Pressing the right button also swings the camera back behind — on the press, not after the hold. |
+| **Arrow keys** | Steer without the mouse. Speed never changes; the keys only change where the unit is pointing. |
+| **Flying…** | The button bottom-left opens the unit window. The sector keeps moving behind it, and choosing is instant — position, heading and speed all carry over. |
+| **1**–**4**, **Tab** | The same thing without opening anything. Numbers pick one outright, Tab walks the list (Shift+Tab backwards). |
+| **N** | A new sector. Different seed, different unit, different sky. |
+| **H** | Toggle the overlay. |
+
+Both mouse gestures are holds: a button does nothing until it has been down for
+a fifth of a second, so a plain click never moves the camera or turns the unit.
+
+## The four units
+
+Original designs and original names. The language is late-90s mecha — armour
+plates, tricolour paint, gold vents — and the language is all that is borrowed.
+No franchise names, shapes, emblems or quotes, and nothing fires, fights or
+explodes.
+
+| Unit | Class | The one shape | How it flies |
+| --- | --- | --- | --- |
+| **Wayfarer** XR-7 | Light mech | Folded wing binders that open as it pushes | Light, floaty, happiest on a long glide |
+| **Bastion** HV-2 | Heavy mech | A shield plate wider than it is tall | Slow and stately, wide lazy turns |
+| **Swordtail** SW-4 | Interceptor | A long blade-like tail boom carrying the engines | Quick, sharp, banks hard |
+| **Old Tuesday** FR-9 | Freighter | An open hauling frame with containers slung in it | Slow, steady, lived-in |
+
+Each is built to one recipe. **Plates, not surfaces**: chunky bevelled blocks,
+flat-shaded, with a thin dark gap between them, and each plate exactly one
+colour — which is what makes the tricolour read as paint rather than as
+shading. **One silhouette idea**, exaggerated, with everything else kept
+compact, because an outline is what identifies a unit at distance. **Gold where
+the camera is**, on the back vents and thrusters, since the camera lives behind.
+And **thrust is the animation** — engines breathe from `thrust` toward `signal`
+and the bell stretches with them. Nothing loops, flickers or pulses at you.
+
+The bevelled box each plate is built from is wound by hand: six face quads,
+twelve edge quads and eight corner triangles, and the handedness of the corner
+decides which way round its triangle goes. Get one wrong and you have a plate
+that looks perfect from every angle except one, so `verify:units` counts edges
+used by exactly one triangle and checks the signed volume is positive.
+
+It also **measures the paint**. The design gives a ratio — roughly 55 white, 25
+navy, 12 red, 8 gold — and it is the thing that makes four different
+silhouettes read as one fleet. It is also the easiest thing here to drift:
+every plate added changes it a little, and nobody notices until one unit has
+quietly become mostly navy. Measured by area rather than by plate count,
+because counting plates would call a unit mostly gold when its gold is four
+vents the size of a thumbnail.
+
+## The sector
+
+Debris comes in **clusters with empty space between them**, not sprinkled
+evenly. That rule is inherited: an endlessly generated world has a
+characteristic failure where everywhere is equally interesting, which means
+nowhere is. Rocks are icosahedra squashed and turned at random, warm rust mixed
+with cool grey per rock rather than per cluster, and most are small — the
+occasional big one is what gives a cluster a scale to read the rest against.
+
+Roughly **one region in nine** carries something worth flying to: a planet, a
+derelict station ring still slowly turning, a gate frame standing in nothing, a
+drifting container yard, or a black hole. The black hole is the one thing out
+here that is not lit — a genuinely black sphere with a bright disc around it,
+which works precisely because the sky it sits against never is. No lens flare
+and no distortion shader: the design allows one flare per scene at most, and
+the logo already spent it.
+
+Space is built in **regions** the way Currents built the seabed in chunks — a
+cube generated from a hash of its own coordinates, so a region rebuilds
+identically whether you reach it in ten seconds or ten minutes, and from any
+direction. Vertically the sector is much thinner than it is wide, because there
+is no reason to generate debris a kilometre above the lane nobody flies in.
+
+## Flying itself
+
+Left alone, a unit keeps flying, and it has to stay interesting indefinitely.
+The failure that guards against is a unit which settles into a slow permanent
+circle — the natural resting state of any naive version, which picks a random
+heading offset and eases toward it, because the easing never quite arrives and
+so the offset never fully spends.
+
+So the heading is a **sum of slow sine waves at unrelated periods** rather than
+a target chased with a spring. Sines cannot wind up. `verify:steering` flies
+twenty simulated minutes and measures the **net turn**: 0.7 turns, reversing
+direction sixteen times. A circling autopilot would show tens of turns all one
+way.
+
+That check deliberately does **not** measure displacement, and the reason is
+worth keeping: a wanderer is a random walk, and a random walk's displacement
+grows as the square root of the distance flown, so a perfectly healthy drift
+covers only a few percent of the ground it travels. An earlier version of the
+check tested that number, failed a good autopilot, and would have passed a
+circling one with a wide enough radius.
 
 ## Running it
 
@@ -38,18 +139,29 @@ npm run dev      # http://127.0.0.1:5174
 | `npm run preview` | Serve the production bundle |
 | `npm run typecheck` | Types only |
 | `npm run verify:starfield` | Headless check that the sky is evenly covered and stays with you |
+| `npm run verify:units` | Headless check that every plate is closed and the paint follows the ratio |
+| `npm run verify:steering` | Headless check that each control goes the way it looks, and the autopilot never circles |
 
-More verify scripts arrive with the things they check: steering and the
-autopilot wander in phase 4, the saved sortie in phase 4, the star cycle in
-phase 4. They are ports of the equivalents in Currents, which is where the
-approach comes from — a headless check that steps the real code and asks a
-question about the result, rather than a screenshot somebody has to squint at.
+The approach comes from Currents: a headless check that steps the real code and
+asks a question about the result, rather than a screenshot somebody has to
+squint at. All three run in the deploy workflow before anything is published,
+because a build log cannot tell you that the sky has a bald patch at the poles,
+that a unit is full of holes, or that the controls send you the opposite way
+from the one they name.
+
+## Deploying
+
+Pushing `main` builds and publishes to GitHub Pages, via
+`.github/workflows/deploy.yml`. The three checks run first and a failure stops
+the deploy. `BASE_PATH` comes from GitHub rather than being written down, so it
+keeps working if the repository is renamed or forked.
 
 ## URL options
 
 | Fragment | Effect |
 | --- | --- |
 | `#seed=abc123` | Rebuild a specific sector exactly. The current seed is always written into the address, so a copied link is this sector. |
+| `#unit=swordtail` | Launch as a named unit (`wayfarer`, `bastion`, `swordtail`, `old-tuesday`) rather than one the sector deals you. Changing unit in game rewrites this, so a reload keeps whichever one you are flying. |
 
 ## What Currents this is built from
 

@@ -51,11 +51,75 @@ export const RENDER = {
 
 export const CAMERA = {
   fov: 52,
-  near: 0.4,
-  far: 2000,
+  /**
+   * A near plane kept well off zero, and a far plane kept well in.
+   *
+   * These two together decide how much depth precision there is, and getting
+   * the ratio wrong is not a subtle problem: at 0.4 against 2000, a surface
+   * several hundred units short of the far plane still rounded past it and was
+   * clipped away with no warning at all. Nothing in this sector needs to be
+   * drawn closer than a metre, and everything meant to look distant follows the
+   * camera instead of actually being far away.
+   */
+  near: 1,
+  far: 1600,
   /** How far behind the unit the camera sits until anything moves it. */
   distance: 26,
+  minDistance: 9,
+  maxDistance: 70,
   height: 5.5,
+  /** How lazily the camera trails the unit through a turn. */
+  follow: 2.6,
+  /** Seconds to swing back behind the unit when asked. */
+  recenter: 1.1,
+} as const;
+
+export const FLIGHT = {
+  /** Units per second at a cruise. Slow on purpose: nobody here is in a hurry. */
+  cruiseSpeed: 16,
+  /** How much faster the autopilot's long glides run at their fastest. */
+  speedBreathAmount: 0.08,
+  speedBreathPeriod: 19,
+  /** Radians per second the pilot may turn at, before a unit's own scaling. */
+  turnRate: 0.85,
+  /** How far past level the nose may go. Nothing here loops. */
+  maxPitch: 0.62,
+  /** Roll is derived from yaw rate, never integrated. */
+  bankStrength: 2.9,
+  maxBank: 0.85,
+  /** How quickly the eased arrow-key axes catch up with the keys themselves. */
+  keySteerResponse: 3.2,
+} as const;
+
+export const POINTER = {
+  /** Seconds a button must be held before its gesture takes effect. */
+  holdDelay: 0.2,
+  /** Radians of orbit per pixel dragged. */
+  orbitPerPixel: 0.0055,
+  /** Zoom per wheel notch. */
+  zoomPerNotch: 0.055,
+} as const;
+
+/** The armour paint, shared by every unit. */
+export const PAINT = {
+  white: 0xd8dbe6,
+  navy: 0x33436e,
+  red: 0xc23434,
+  gold: 0xf0b440,
+  /** The thin dark line between plates. */
+  gap: 0x11172a,
+} as const;
+
+export const FIELD = {
+  /** Side of one region of space, in units. Debris is clustered inside these. */
+  regionSize: 420,
+  /** Regions kept live in each direction around the pilot. */
+  regionRadius: 2,
+  /** Roughly how many clusters a region holds. Most regions are empty sky. */
+  clustersPerRegion: 1.7,
+  rocksPerCluster: [6, 22] as [number, number],
+  /** Roughly one region in this many carries a landmark. */
+  landmarkChance: 1 / 9,
 } as const;
 
 /**

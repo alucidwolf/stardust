@@ -1,0 +1,570 @@
+/*
+  The interface, built from design-system/components/bundle.css.
+  Tokens and the page shell live in styles.css; this is the controls.
+*/
+
+/* -- The plate -------------------------------------------------------------- */
+
+/*
+  Every control on this page is the same object: a cut armour plate. One
+  element, whose own background is the 1px outline and whose ::before, inset by
+  a pixel, carries the face — because a clipped box cannot draw a border.
+
+  `--sd-c` is the cut size. `.plate` cuts all four corners; `.plate--armour`
+  cuts the top-left and bottom-right only, which is what windows and cards use,
+  and is the shape that reads as armour rather than as a ticket stub.
+
+  `isolation: isolate` is what makes the negative z-index safe — it confines the
+  ::before to this element's own stacking context, so the face paints over the
+  outline and under the text instead of disappearing behind the page.
+*/
+.plate {
+  --sd-c: var(--cut-sm);
+  --sd-face: var(--panel);
+  --sd-edge: var(--line-strong);
+  position: relative;
+  isolation: isolate;
+  background: var(--sd-edge);
+  clip-path: polygon(
+    var(--sd-c) 0,
+    calc(100% - var(--sd-c)) 0,
+    100% var(--sd-c),
+    100% calc(100% - var(--sd-c)),
+    calc(100% - var(--sd-c)) 100%,
+    var(--sd-c) 100%,
+    0 calc(100% - var(--sd-c)),
+    0 var(--sd-c)
+  );
+}
+
+.plate--armour {
+  clip-path: polygon(
+    var(--sd-c) 0,
+    100% 0,
+    100% calc(100% - var(--sd-c)),
+    calc(100% - var(--sd-c)) 100%,
+    0 100%,
+    0 var(--sd-c)
+  );
+}
+
+.plate::before {
+  content: "";
+  position: absolute;
+  inset: 1px;
+  z-index: -1;
+  background: var(--sd-face);
+  clip-path: inherit;
+}
+
+/* A cut plate clips its own focus ring, so it shows focus on its outline. */
+.plate:focus-visible {
+  outline: none;
+  --sd-edge: var(--signal);
+}
+
+/* -- Keycap ----------------------------------------------------------------- */
+
+.key {
+  --sd-c: var(--cut-xs);
+  --sd-face: var(--panel-2);
+  display: inline-grid;
+  place-items: center;
+  min-width: 1.5rem;
+  height: 1.45rem;
+  padding: 0 0.4rem;
+  font: 400 0.7rem/1 var(--font-mono);
+  letter-spacing: 0.06em;
+  color: var(--armor-gold);
+  vertical-align: middle;
+}
+
+/* -- HUD -------------------------------------------------------------------- */
+
+.hud {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  padding: var(--space-5);
+  opacity: 1;
+  transition: opacity 1.6s ease;
+}
+
+.hud[data-faded="true"] {
+  opacity: 0;
+}
+
+.hud[data-hidden="true"] {
+  display: none;
+}
+
+.hints {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-5);
+  font: 500 0.82rem/1.4 var(--font-ui);
+  letter-spacing: 0.03em;
+  color: var(--ink-dim);
+  align-self: flex-start;
+}
+
+.hints > span {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+/* A gesture, named in the same weight as a key but without the cap on it. */
+.hints b:not(.key) {
+  color: var(--ink);
+  font-weight: 700;
+}
+
+.hud__meta {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  gap: var(--space-4);
+}
+
+.hud__end {
+  display: grid;
+  justify-items: end;
+  gap: var(--space-2);
+}
+
+/* -- Unit trigger ----------------------------------------------------------- */
+
+/*
+  The HUD is pointer-transparent so it never swallows a drag meant for the
+  sector; this is one of the few things in it you are supposed to be able to
+  hit.
+*/
+.trigger {
+  pointer-events: auto;
+  --sd-c: var(--cut-sm);
+  appearance: none;
+  border: 0;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.7rem;
+  padding: 0.55rem 1rem 0.55rem 0.75rem;
+  color: var(--ink);
+  font: inherit;
+  transition: transform 120ms var(--ease-snap);
+}
+
+.trigger:hover {
+  --sd-edge: var(--signal);
+  transform: translateY(-1px);
+}
+
+/*
+  A crest chevron, cut from a polygon. Angular, single-colour and abstract, as
+  the design requires — and deliberately nothing anybody could mistake for a
+  real emblem.
+*/
+.trigger__icon {
+  width: 1.1rem;
+  height: 1.1rem;
+  flex: none;
+  background: var(--armor-gold);
+  clip-path: polygon(50% 0, 100% 38%, 80% 100%, 50% 72%, 20% 100%, 0 38%);
+}
+
+.trigger__text {
+  display: grid;
+  gap: 2px;
+  text-align: left;
+}
+
+.trigger__label {
+  font: 600 0.62rem/1.1 var(--font-ui);
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--ink-dim);
+}
+
+.trigger__name {
+  font: 700 0.92rem/1.15 var(--font-ui);
+  letter-spacing: 0.04em;
+}
+
+.trigger .micro {
+  margin-left: 0.4rem;
+  align-self: flex-end;
+}
+
+/* -- Unit cards ------------------------------------------------------------- */
+
+.card {
+  --sd-c: var(--cut-md);
+  appearance: none;
+  border: 0;
+  cursor: pointer;
+  text-align: left;
+  display: grid;
+  gap: 6px;
+  width: 100%;
+  align-content: start;
+  padding: 0.9rem 1rem 1rem;
+  color: var(--ink);
+  font-family: var(--font-ui);
+  transition: transform 140ms var(--ease-snap);
+}
+
+.card:hover {
+  --sd-edge: var(--signal);
+  transform: translateY(-2px);
+}
+
+/* Gold means chosen. The corner wedge is the one filled accent in the window. */
+.card[data-current="true"] {
+  --sd-edge: var(--armor-gold);
+}
+
+.card[data-current="true"]::after {
+  content: "";
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  width: 22px;
+  height: 22px;
+  background: var(--armor-gold);
+  clip-path: polygon(100% 0, 100% 100%, 0 100%);
+}
+
+.card__top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.card__name {
+  font: 700 1.05rem/1.2 var(--font-ui);
+  letter-spacing: 0.04em;
+}
+
+.card__class {
+  justify-self: start;
+  padding: 2px 6px;
+  font: 600 0.6rem/1.2 var(--font-ui);
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--signal);
+  border: 1px solid var(--line-strong);
+}
+
+.card__class--ship {
+  color: var(--armor-gold);
+}
+
+.card__blurb {
+  font: 500 0.82rem/1.45 var(--font-ui);
+  color: var(--ink-dim);
+}
+
+/* -- The unit window -------------------------------------------------------- */
+
+.window-layer {
+  position: fixed;
+  inset: 0;
+  z-index: 15;
+  display: grid;
+  place-items: center;
+  padding: var(--space-5);
+  /* Only enough to lift the window off the sector. Blacking the sky out would
+     make this a screen, and it is not one — you are still flying. */
+  background: rgba(7, 10, 20, 0.52);
+}
+
+/* `display: grid` above outranks the browser's own `[hidden]` rule, which
+   would otherwise leave a closed window as an invisible full-screen layer
+   swallowing every pointer meant for the sector. */
+.window-layer[hidden] {
+  display: none;
+}
+
+.window-wrap {
+  position: relative;
+  width: min(58rem, 100%);
+  /* A cut box clips its own box-shadow, so the lift is a filter instead. */
+  filter: drop-shadow(0 18px 48px rgba(0, 0, 0, 0.55));
+}
+
+.window {
+  --sd-c: var(--cut-lg);
+  overflow: hidden;
+}
+
+.window__bar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--space-3);
+  padding: 0.7rem 1.4rem 0.7rem 2rem;
+  background: var(--panel-2);
+  border-bottom: 1px solid var(--line);
+}
+
+.window__title {
+  margin: 0;
+  font: 400 0.95rem/1.2 var(--font-display);
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+}
+
+.window__body {
+  padding: var(--space-5) var(--space-6) var(--space-6);
+}
+
+.window__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr));
+  gap: var(--space-3);
+}
+
+.window__foot {
+  margin: var(--space-4) 0 0;
+  font: 500 0.8rem/1.45 var(--font-ui);
+  color: var(--ink-dim);
+}
+
+/* Tick brackets on the two corners the armour cut leaves square. */
+.window__tick {
+  position: absolute;
+  width: 14px;
+  height: 14px;
+  border-color: var(--signal);
+  border-style: solid;
+  pointer-events: none;
+}
+
+.window__tick--tr {
+  top: 5px;
+  right: 5px;
+  border-width: 1px 1px 0 0;
+}
+
+.window__tick--bl {
+  bottom: 5px;
+  left: 5px;
+  border-width: 0 0 1px 1px;
+}
+
+/*
+  The open sequence: a line draws, the window unfolds out of it, then the
+  content settles while one scan sweeps down. About 420ms altogether, played
+  once. Nothing here loops — a scanline that ran forever would be the single
+  most obvious way to break this design.
+*/
+.window-wrap[data-state="open"] {
+  animation: sd-unfold var(--dur-expand) var(--ease-snap) var(--dur-line) backwards;
+}
+
+.window-wrap[data-state="open"]::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 50%;
+  height: 1px;
+  background: var(--signal);
+  animation: sd-line calc(var(--dur-line) + var(--dur-expand)) var(--ease-snap) both;
+  pointer-events: none;
+}
+
+.window-wrap[data-state="open"] .window__body,
+.window-wrap[data-state="open"] .window__bar > * {
+  animation: sd-settle var(--dur-settle) ease-out
+    calc(var(--dur-line) + var(--dur-expand)) both;
+}
+
+.window-wrap[data-state="open"] .window::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+  height: 18%;
+  z-index: 2;
+  pointer-events: none;
+  background: linear-gradient(
+    180deg,
+    rgba(94, 200, 255, 0) 0%,
+    rgba(94, 200, 255, 0.14) 85%,
+    rgba(94, 200, 255, 0.5) 100%
+  );
+  animation: sd-scan 320ms linear calc(var(--dur-line) + var(--dur-expand)) both;
+}
+
+.window-wrap[data-state="closing"] .window {
+  animation: sd-fold var(--dur-close) var(--ease-snap) both;
+}
+
+@keyframes sd-line {
+  0% { transform: scaleX(0); opacity: 1; }
+  45% { transform: scaleX(1); opacity: 1; }
+  100% { transform: scaleX(1); opacity: 0; }
+}
+
+@keyframes sd-unfold {
+  from { clip-path: inset(calc(50% - 1px) 0 calc(50% - 1px) 0); }
+  to { clip-path: inset(0 0 0 0); }
+}
+
+@keyframes sd-fold {
+  from { opacity: 1; transform: scaleY(1); }
+  70% { opacity: 1; transform: scaleY(0.006); }
+  to { opacity: 0; transform: scaleY(0.006) scaleX(0); }
+}
+
+@keyframes sd-settle {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: none; }
+}
+
+@keyframes sd-scan {
+  from { transform: translateY(-100%); opacity: 1; }
+  90% { opacity: 1; }
+  to { transform: translateY(560%); opacity: 0; }
+}
+
+/* -- Announce --------------------------------------------------------------- */
+
+/*
+  The unit you just switched to. Outside the HUD on purpose: this is momentary
+  feedback for something you just did, so it should still appear when the hints
+  have faded out or been switched off.
+*/
+.announce {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 16%;
+  display: grid;
+  justify-items: center;
+  gap: 10px;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.9s ease;
+}
+
+.announce[data-show="true"] {
+  opacity: 1;
+  /* Snap in, drift out — the arrival should register, the exit should not. */
+  transition: opacity 0.14s ease;
+}
+
+.announce__name {
+  font: 400 1.2rem/1.2 var(--font-display);
+  letter-spacing: 0.24em;
+  text-indent: 0.24em;
+  text-transform: uppercase;
+  color: var(--ink);
+}
+
+.announce__streaks {
+  position: relative;
+  width: 240px;
+  height: 16px;
+}
+
+.announce__streaks i {
+  position: absolute;
+  right: 0;
+  height: 1px;
+  background: linear-gradient(90deg, rgba(207, 227, 255, 0), var(--star-cool));
+}
+
+.announce__streaks i::after {
+  content: "";
+  position: absolute;
+  right: -3px;
+  top: -3px;
+  width: 7px;
+  height: 7px;
+  background: var(--star-warm);
+  clip-path: polygon(50% 0, 62% 38%, 100% 50%, 62% 62%, 50% 100%, 38% 62%, 0 50%, 38% 38%);
+}
+
+.announce__streaks i:nth-child(1) { top: 2px; width: 100%; }
+.announce__streaks i:nth-child(2) { top: 8px; width: 72%; right: 14px; }
+.announce__streaks i:nth-child(3) { top: 14px; width: 48%; right: 30px; }
+
+.announce[data-show="true"] .announce__name {
+  animation: sd-settle 140ms ease-out both;
+}
+
+.announce[data-show="true"] .announce__streaks i {
+  animation: sd-streak 420ms var(--ease-snap) both;
+  transform-origin: right center;
+}
+
+.announce[data-show="true"] .announce__streaks i:nth-child(2) { animation-delay: 50ms; }
+.announce[data-show="true"] .announce__streaks i:nth-child(3) { animation-delay: 100ms; }
+
+@keyframes sd-streak {
+  from { transform: scaleX(0); opacity: 0; }
+  to { transform: scaleX(1); opacity: 1; }
+}
+
+/* -- Readout ---------------------------------------------------------------- */
+
+.readout {
+  --sd-c: var(--cut-sm);
+  pointer-events: auto;
+  display: inline-grid;
+  grid-template-columns: auto auto;
+  gap: 2px var(--space-4);
+  padding: 0.8rem 1rem;
+  font: 400 0.74rem/1.5 var(--font-mono);
+  letter-spacing: 0.04em;
+  font-variant-numeric: tabular-nums;
+}
+
+.readout dt {
+  color: var(--ink-faint);
+  text-transform: uppercase;
+}
+
+.readout dd {
+  margin: 0;
+  color: var(--ink);
+  text-align: right;
+}
+
+.readout dd.is-live {
+  color: var(--signal);
+}
+
+/*
+  Asked for less movement: everything simply appears. The window still opens
+  and closes; it just does not perform doing so.
+*/
+@media (prefers-reduced-motion: reduce) {
+  .window-wrap[data-state],
+  .window-wrap[data-state] .window,
+  .window-wrap[data-state]::after,
+  .window-wrap[data-state] .window::after,
+  .window-wrap[data-state] .window__body,
+  .window-wrap[data-state] .window__bar > *,
+  .announce[data-show] * {
+    animation: none !important;
+  }
+
+  .trigger,
+  .card {
+    transition-duration: 0.01ms;
+  }
+
+  .trigger:hover,
+  .card:hover {
+    transform: none;
+  }
+}

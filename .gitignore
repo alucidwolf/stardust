@@ -6,3 +6,5 @@ tools/.starfield-check.mjs
 .DS_Store
 Thumbs.db
 *.log
+tools/.units-check.mjs
+tools/.steering-check.mjs

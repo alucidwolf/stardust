@@ -179,6 +179,100 @@
 
     <canvas id="scene"></canvas>
 
+    <div id="hud" class="hud">
+      <!--
+        Keys get a keycap. Mouse gestures do not: a drag is not something you
+        can press, and putting it on a keycap says that it is.
+      -->
+      <div class="hints">
+        <span><b>Drag</b> to look around</span>
+        <span><b>Right-hold</b> or <b class="plate key">arrows</b> to steer</span>
+        <span><b>Scroll</b> to zoom</span>
+        <span><b class="plate key">Tab</b> or the button below to change unit</span>
+      </div>
+
+      <div class="hud__meta">
+        <!--
+          The visible way to change unit. The number keys do the same thing and
+          are printed on the cards, but a control nobody can see is not a way to
+          change unit, it is a thing you have to already know.
+        -->
+        <button
+          id="unit-trigger"
+          class="plate trigger"
+          type="button"
+          aria-haspopup="dialog"
+          aria-expanded="false"
+          aria-controls="unit-layer"
+        >
+          <span class="trigger__icon" aria-hidden="true"></span>
+          <span class="trigger__text">
+            <span class="trigger__label">Flying</span>
+            <span id="unit-trigger-name" class="trigger__name"></span>
+          </span>
+          <span id="unit-trigger-code" class="micro"></span>
+        </button>
+
+        <div class="hud__end">
+          <!--
+            Telemetry only: what is true right now. No warnings, no targets and
+            no reticle — the instruments here are for flying, not fighting.
+          -->
+          <dl id="readout" class="plate readout">
+            <dt>Sector</dt>
+            <dd id="read-sector">—</dd>
+            <dt>Heading</dt>
+            <dd id="read-heading">000°</dd>
+            <dt>Velocity</dt>
+            <dd id="read-speed">0.0</dd>
+            <dt>Control</dt>
+            <dd id="read-mode">AUTO</dd>
+          </dl>
+          <span class="micro">H hints &middot; N new sector</span>
+        </div>
+      </div>
+    </div>
+
+    <!--
+      Opened on purpose and closed on almost anything. The sector keeps moving
+      behind it — nothing here is waiting to be dismissed.
+    -->
+    <div id="unit-layer" class="window-layer" hidden>
+      <div id="unit-window" class="window-wrap">
+        <div
+          class="plate plate--armour window"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Choose a unit"
+        >
+          <div class="window__bar">
+            <h2 class="window__title">Select Unit</h2>
+            <span class="micro">SD-SYS 2.0</span>
+          </div>
+          <div class="window__body">
+            <div id="unit-grid" class="window__grid"></div>
+            <p class="window__foot">
+              The flight carries on — you keep your position, heading and speed.
+            </p>
+          </div>
+        </div>
+        <span class="window__tick window__tick--tr" aria-hidden="true"></span>
+        <span class="window__tick window__tick--bl" aria-hidden="true"></span>
+      </div>
+    </div>
+
+    <!--
+      Outside the HUD on purpose: momentary feedback for something you just
+      did, so it should still appear when the hints have faded or been switched
+      off.
+    -->
+    <div id="announce" class="announce" aria-live="polite">
+      <span id="announce-name" class="announce__name"></span>
+      <span class="announce__streaks" aria-hidden="true">
+        <i></i><i></i><i></i>
+      </span>
+    </div>
+
     <!--
       Shown once over the opening drift, then gone. The poster carries the
       wordmark, so the name is not repeated as text beside it.
