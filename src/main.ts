@@ -7,6 +7,7 @@ import { createLoop } from "./core/loop";
 import { formatSeed, resolveSectorSeed, sectorCode } from "./core/rng";
 import { CameraRig } from "./control/cameraRig";
 import { createInput } from "./control/input";
+import { trimCommand } from "./control/steering";
 import { Autopilot } from "./flight/autopilot";
 import { Pilot } from "./flight/pilot";
 import type { SteerCommand } from "./flight/pilot";
@@ -221,24 +222,30 @@ function pointerCommand(): SteerCommand {
 }
 
 /**
- * Turn the arrow keys into a heading.
+ * Turn the arrow keys into a trim on the current course.
  *
- * Relative where the cursor is absolute: a key says "keep turning this way",
- * not "go to that point". The eased axes scale the turn, so a turn leans in
- * when the key goes down and unwinds when it comes up rather than switching on
- * and off.
+ * Relative where the cursor is absolute, and gentle where the cursor is
+ * direct: the cursor says "go over there", a key says "a little more to the
+ * left". Both are steering, but they are not the same control, and running
+ * them at the same rate made the keys useless for the thing they are for — a
+ * held arrow swung the ship through nearly two hundred degrees in four
+ * seconds, which is a spin rather than a correction.
+ *
+ * The eased axes do the rest: a tap leans in and unwinds rather than switching
+ * the turn on and off, so a short press is a small adjustment and a long hold
+ * still eventually brings you about.
+ *
+ * The maths itself is in `control/steering`, so its signs can be tested
+ * against which way the ship actually goes on screen.
  */
 function keyCommand(): SteerCommand {
-  const rate = FLIGHT.turnRate * (unit?.turnScale ?? 1);
-  return {
-    yaw: pilot.yaw + input.steerX * 0.9,
-    pitch: THREE.MathUtils.clamp(
-      pilot.pitch + input.steerY * 0.6,
-      -FLIGHT.maxPitch,
-      FLIGHT.maxPitch,
-    ),
-    turnRate: rate,
-  };
+  return trimCommand(
+    pilot.yaw,
+    pilot.pitch,
+    input.steerX,
+    input.steerY,
+    unit?.turnScale ?? 1,
+  );
 }
 
 // -- frame -------------------------------------------------------------------

@@ -25,6 +25,7 @@
 
 import * as THREE from "three";
 import { FLIGHT } from "../src/core/config";
+import { trimCommand } from "../src/control/steering";
 import { Autopilot } from "../src/flight/autopilot";
 import { Pilot } from "../src/flight/pilot";
 import { UNITS } from "../src/units/units";
@@ -60,17 +61,10 @@ function fly(steerX: number, steerY: number, seconds: number) {
 
   const steps = Math.round(seconds / DT);
   for (let i = 0; i < steps; i++) {
-    // The same shape main.ts uses for the keys: a heading offset from where
-    // the unit is now, rate limited by the pilot itself.
-    pilot.update(i * DT, i * DT, {
-      yaw: pilot.yaw + steerX * 0.9,
-      pitch: THREE.MathUtils.clamp(
-        pilot.pitch + steerY * 0.6,
-        -FLIGHT.maxPitch,
-        FLIGHT.maxPitch,
-      ),
-      turnRate: FLIGHT.turnRate,
-    });
+    // The very function main.ts calls, not a copy of it. A copy is how the
+    // signs drift apart again: the test would go on proving something true
+    // about a formula nothing ships.
+    pilot.update(i * DT, i * DT, trimCommand(pilot.yaw, pilot.pitch, steerX, steerY, 1));
   }
 
   const travelled = pilot.position.clone().sub(start);
@@ -232,7 +226,7 @@ console.log("\nletting go");
     pilot.update(DT, t, {
       yaw: pilot.yaw + 0.9,
       pitch: 0,
-      turnRate: FLIGHT.turnRate,
+      turnRate: FLIGHT.trimRate,
     });
   }
 
@@ -268,22 +262,27 @@ console.log("\nletting go");
   console.log(`  and still      ${THREE.MathUtils.radToDeg(backToStart).toFixed(0)}° off the start`);
 }
 
-console.log("\nthe units");
+console.log("\nthe units, on the arrow keys");
 {
-  // Each unit's turn scale has to actually reach it. A scale nothing reads is
-  // a number in a table pretending to be a design decision.
+  /*
+    Each unit's turn scale has to actually reach it — a scale nothing reads is
+    a number in a table pretending to be a design decision — and the keys have
+    to stay a trim rather than becoming a spin.
+
+    The ceiling is the point of this one. The arrows used to run at the
+    pointer's full rate, and four seconds of holding one swung the lightest
+    unit through nearly three hundred degrees. That is a pirouette, and it is
+    not what an arrow key is for: it adjusts a course, it does not replace it.
+  */
   for (const unit of UNITS) {
     const pilot = new Pilot();
     for (let i = 0; i < 240; i++) {
-      pilot.update(DT, i * DT, {
-        yaw: pilot.yaw + 0.9,
-        pitch: 0,
-        turnRate: FLIGHT.turnRate * unit.turnScale,
-      });
+      pilot.update(DT, i * DT, trimCommand(pilot.yaw, pilot.pitch, 1, 0, unit.turnScale));
     }
-    const turned = Math.abs(pilot.yaw);
-    check(turned > 0.2, `${unit.name} turns when asked`);
-    console.log(`  ${unit.name.padEnd(12)} ${THREE.MathUtils.radToDeg(turned).toFixed(0)}° in four seconds`);
+    const turned = THREE.MathUtils.radToDeg(Math.abs(pilot.yaw));
+    check(turned > 8, `${unit.name} answers the arrow keys (${turned.toFixed(0)}°)`);
+    check(turned < 90, `${unit.name} trims rather than spinning (${turned.toFixed(0)}°)`);
+    console.log(`  ${unit.name.padEnd(12)} ${turned.toFixed(0)}° in four seconds`);
   }
 }
 

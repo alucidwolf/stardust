@@ -35,7 +35,7 @@ is nothing yet for it to control.
 | **Left-hold and drag** | Orbit the camera. It lives behind your unit; moved, it stays where you put it. |
 | **Scroll** | Zoom in and out. |
 | **Right-hold** | Steer: the unit turns toward your cursor. Release and it goes back to flying itself. Pressing the right button also swings the camera back behind — on the press, not after the hold. |
-| **Arrow keys** | Steer without the mouse. Speed never changes; the keys only change where the unit is pointing. |
+| **Arrow keys** | Trim the course — a nudge, not a rudder held over. About eleven degrees a second, a fifth of the cursor's rate, so a tap is a small correction and a long hold still eventually brings you about. Speed never changes. |
 | **Flying…** | The button bottom-left opens the unit window. The sector keeps moving behind it, and choosing is instant — position, heading and speed all carry over. |
 | **1**–**4**, **Tab** | The same thing without opening anything. Numbers pick one outright, Tab walks the list (Shift+Tab backwards). |
 | **N** | A new sector. Different seed, different unit, different sky. |
@@ -124,6 +124,39 @@ grows as the square root of the distance flown, so a perfectly healthy drift
 covers only a few percent of the ground it travels. An earlier version of the
 check tested that number, failed a good autopilot, and would have passed a
 circling one with a wide enough radius.
+
+And what you steer to, you keep. Letting go hands control to the autopilot from
+**your** heading, not from wherever its waves had got to — the baseline is
+re-read from the pilot on every frame they are flying, so there is no handover
+moment to detect and therefore none to miss.
+
+## The arrow keys, and a sign that was wrong
+
+The cursor and the arrow keys are different controls, not one control at two
+speeds. The cursor says "go over there" and gets there; the keys say "a little
+more to the left" and trim the course at about a fifth of that rate.
+
+They originally ran at the same rate, and that hid a real bug for a while.
+`forward` is `(sin yaw, ·, cos yaw)`, so a larger yaw swings toward **+X**,
+while screen right is `cross(forward, up)`, which is **−X**. A larger yaw turns
+you *left* — so a right arrow that added to yaw sent the unit the wrong way.
+This is the same bug Currents shipped, wrote down, and built a check to catch,
+and Stardust reproduced it anyway.
+
+What is interesting is why the check did not catch it either. At the full turn
+rate, six seconds of holding one arrow swung the unit through nearly three
+hundred degrees — most of a circle. The check measures net displacement against
+where screen-right was pointing at the start, and a unit that has come most of
+the way round a circle is displaced in a direction with very little to do with
+which way it first turned. The measurement was reading a lap, not a turn, and
+it happened to come out positive.
+
+Slowing the keys to a trim shortened the arc to sixty-five degrees, and the
+sign that had been wrong all along became the only thing the number could be
+describing. The maths now lives in `src/control/steering.ts` and the check
+calls that exact function rather than a copy of it, because a copy is how the
+signs drift apart again — the test would go on proving something true about a
+formula nothing ships.
 
 ## Running it
 

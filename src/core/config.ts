@@ -88,6 +88,20 @@ export const FLIGHT = {
   speedBreathPeriod: 19,
   /** Radians per second the pilot may turn at, before a unit's own scaling. */
   turnRate: 0.85,
+  /**
+   * Radians per second the arrow keys may trim the course at.
+   *
+   * Deliberately a fifth of the pointer's rate, and it is a different control
+   * rather than a slower version of the same one. The cursor says "go over
+   * there" and should get there; the keys say "a little more to the left", and
+   * at the full rate they did not read that way at all — holding one for four
+   * seconds swung the ship nearly two hundred degrees, which is a pirouette,
+   * not a correction.
+   *
+   * About eleven degrees a second: enough to come about if you hold it long
+   * enough, slow enough that a tap is a nudge.
+   */
+  trimRate: 0.19,
   /** How far past level the nose may go. Nothing here loops. */
   maxPitch: 0.62,
   /** Roll is derived from yaw rate, never integrated. */
