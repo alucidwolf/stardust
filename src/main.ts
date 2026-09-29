@@ -18,9 +18,11 @@ import { Fields } from "./world/fields";
 import { Motes } from "./world/motes";
 import { Nebula } from "./world/nebula";
 import { Starfield } from "./world/starfield";
+import { Streaks } from "./world/streaks";
 import { Hud } from "./ui/hud";
 import { TitleCard } from "./ui/titleCard";
 import { UnitPicker } from "./ui/unitPicker";
+import { AutopilotToggle } from "./ui/autopilotToggle";
 
 const canvas = document.getElementById("scene") as HTMLCanvasElement;
 
@@ -66,6 +68,7 @@ const titleCard = new TitleCard();
 
 const motes = new Motes(scene, sectorSeed, pilot.position);
 const fields = new Fields(scene, sectorSeed);
+const streaks = new Streaks(scene, sectorSeed);
 
 scene.add(pilot.object);
 
@@ -110,6 +113,21 @@ let unit: UnitDef | null = null;
  */
 const SWAP_SETTLE = 0.4;
 let swapSettle = 1;
+
+/**
+ * Who is flying.
+ *
+ * Taking the stick drops the autopilot and leaves it dropped. It never quietly
+ * takes back over a few seconds after you stop moving the mouse, because that
+ * is the behaviour of something that thinks it knows better than the pilot —
+ * and the whole complaint that produced this was a ship that kept undoing the
+ * heading it had just been given.
+ */
+const autopilotToggle = new AutopilotToggle((engaged) => {
+  // Re-baselined on the way back in, so the autopilot continues from the
+  // heading the pilot actually left it at rather than snapping to its own.
+  if (engaged) autopilot.hold(loop.elapsed, pilot);
+});
 
 const picker = new UnitPicker(
   (chosen) => adoptUnit(chosen, true),
@@ -189,6 +207,7 @@ window.addEventListener("keydown", (event) => {
 
 // -- steering ----------------------------------------------------------------
 
+const STREAK_HEADING = new THREE.Vector3();
 const steerTarget = new THREE.Vector3();
 const steerDirection = new THREE.Vector3();
 
@@ -259,19 +278,27 @@ const loop = createLoop((dt, elapsed) => {
 
   const piloted = input.steering || input.keySteering;
 
+  // Touching the steering hands the stick over, and it stays handed over.
+  if (piloted) autopilotToggle.release();
+
   // While the pilot is flying, the autopilot keeps reading their heading as its
-  // own baseline, so the moment they let go it carries on from there rather
-  // than steering back to wherever its waves had got to. Done every frame
-  // rather than on release, so there is no handover edge to miss.
+  // own baseline, so if it is ever engaged again it carries on from there
+  // rather than steering back to wherever its waves had got to. Done every
+  // frame rather than on release, so there is no handover edge to miss.
   if (piloted) autopilot.hold(elapsed, pilot);
 
+  const engaged = autopilotToggle.isEngaged;
   const command = piloted
     ? input.steering
       ? pointerCommand()
       : keyCommand()
-    : autopilot.update(elapsed, pilot, unit?.turnScale ?? 1);
+    : engaged
+      ? autopilot.update(elapsed, pilot, unit?.turnScale ?? 1)
+      : // Hands off and flying manually: hold the heading exactly. Nothing
+        // here drifts on its own, which is the point of the mode.
+        { yaw: pilot.yaw, pitch: pilot.pitch, turnRate: 0 };
 
-  pilot.update(dt, elapsed, command);
+  pilot.update(dt, elapsed, command, input.boosting);
 
   // Already carries the unit's own multiplier, so nothing here reapplies it.
   const rate = pilot.speed / FLIGHT.cruiseSpeed;
@@ -293,6 +320,15 @@ const loop = createLoop((dt, elapsed) => {
   motes.update(dt, elapsed, rig.camera.position);
   fields.update(dt, elapsed, pilot.position);
 
+  // Only while turning or boosting, as the design requires. Streaks that are
+  // always there stop being a signal and become the texture of space itself.
+  streaks.update(
+    rig.camera.position,
+    pilot.forward(STREAK_HEADING),
+    Math.max(pilot.turnEffort, pilot.boost),
+    dt,
+  );
+
   titleCard.update(dt);
 
   // Heading as a compass bearing, which is what a readout should show — not the
@@ -301,7 +337,10 @@ const loop = createLoop((dt, elapsed) => {
   hud.update(dt, input.idleTime, {
     heading: bearing,
     speed: pilot.speed,
-    piloted,
+    // The mode, not the moment: what the readout reports is who has the stick,
+    // which does not flicker back and forth as the pilot pauses between turns.
+    piloted: !engaged,
+    boost: pilot.boost,
   });
 
   // Drag and wheel are accumulators; the camera has now had its look at them.

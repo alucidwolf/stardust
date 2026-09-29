@@ -21,9 +21,34 @@ import type { Rng } from "../core/rng";
  */
 
 /** What a region can be built around, beyond ordinary rock. */
-type LandmarkKind = "planet" | "ring" | "gate" | "yard" | "blackhole";
+type LandmarkKind =
+  | "planet"
+  | "ring"
+  | "gate"
+  | "yard"
+  | "blackhole"
+  | "giant"
+  | "comet"
+  | "hulk"
+  | "crystals";
 
-const LANDMARKS: readonly LandmarkKind[] = ["planet", "ring", "gate", "yard", "blackhole"];
+/**
+ * The ordinary landmarks: something to come across.
+ *
+ * Roughly one region in nine carries one of these.
+ */
+const LANDMARKS: readonly LandmarkKind[] = ["planet", "ring", "gate", "yard"];
+
+/**
+ * The rare ones: something to remember.
+ *
+ * Rolled separately and far less often, because rarity is the entire mechanism
+ * by which any of these is impressive. A ringed giant you meet every other
+ * region is scenery; one you meet twice an hour is an event. The rule is
+ * inherited from Currents' wrecks and it is the one rule here that cannot be
+ * relaxed without the whole idea failing quietly.
+ */
+const WONDERS: readonly LandmarkKind[] = ["blackhole", "giant", "comet", "hulk", "crystals"];
 
 /**
  * Rock colour: warm on one side of the palette, cool on the other.
@@ -69,6 +94,74 @@ function finish(merged: Merged): THREE.BufferGeometry | null {
 }
 
 /**
+ * An accretion disc that is not a flat donut.
+ *
+ * A ring of one flat colour reads as a paper cut-out with a hole in it, and
+ * that is exactly what the first version looked like. What gives a disc depth
+ * is that its brightness is a **function of radius** — blazing where the
+ * matter is fastest and hottest at the inner edge, falling away outward — and
+ * that it has a hot *side*, because a perfectly even annulus has no volume for
+ * the eye to find.
+ *
+ * Radius and angle are recovered from the position in the vertex stage rather
+ * than read from UVs, because a ring's UVs are laid out for a texture and say
+ * very little about where on the ring a fragment actually is.
+ */
+function accretionMaterial(hotAngle: number, strength: number): THREE.ShaderMaterial {
+  return new THREE.ShaderMaterial({
+    vertexShader: /* glsl */ `
+      varying float vRadius;
+      varying float vAngle;
+      void main() {
+        vRadius = length( position.xy );
+        vAngle = atan( position.y, position.x );
+        gl_Position = projectionMatrix * modelViewMatrix * vec4( position, 1.0 );
+      }
+    `,
+    fragmentShader: /* glsl */ `
+      uniform float uInner;
+      uniform float uOuter;
+      uniform float uHot;
+      uniform float uStrength;
+      uniform float uTime;
+      varying float vRadius;
+      varying float vAngle;
+
+      void main() {
+        float t = clamp( ( vRadius - uInner ) / max( uOuter - uInner, 1e-4 ), 0.0, 1.0 );
+
+        // Steep: most of the light is in the first fifth of the disc, which is
+        // where the sense of a well rather than a washer comes from.
+        float radial = pow( 1.0 - t, 2.6 );
+
+        // One hot side, turning slowly. Not a flicker and not a pulse — it is
+        // the disc having a near and a far limb.
+        float side = 0.62 + 0.38 * cos( vAngle - uHot - uTime * 0.05 );
+
+        // Hot gold at the inner edge cooling to rust outward, which is the one
+        // place in this sector warm colour is allowed to run the show.
+        vec3 colour = mix( vec3( 0.72, 0.42, 0.18 ), vec3( 1.0, 0.94, 0.78 ), radial );
+
+        float alpha = radial * side * uStrength;
+        if ( alpha < 0.004 ) discard;
+        gl_FragColor = vec4( colour, alpha );
+      }
+    `,
+    uniforms: {
+      uInner: { value: 0 },
+      uOuter: { value: 1 },
+      uHot: { value: hotAngle },
+      uStrength: { value: strength },
+      uTime: { value: 0 },
+    },
+    transparent: true,
+    side: THREE.DoubleSide,
+    depthWrite: false,
+    blending: THREE.AdditiveBlending,
+  });
+}
+
+/**
  * One boulder.
  *
  * An icosahedron squashed unevenly and turned at random, so every rock is a
@@ -96,7 +189,8 @@ class Region {
   /** Set for landmarks with a part that turns. */
   private spinner: THREE.Object3D | null = null;
   private spinRate = 0;
-  private disc: THREE.Mesh | null = null;
+  private discs: THREE.Mesh[] = [];
+  private halo: THREE.Mesh | null = null;
 
   constructor(
     scene: THREE.Scene,
@@ -155,9 +249,11 @@ class Region {
     }
 
     // --- the rare thing ------------------------------------------------------
-    this.landmark = rng() < FIELD.landmarkChance
-      ? LANDMARKS[Math.floor(rng() * LANDMARKS.length)]!
-      : null;
+    this.landmark = rng() < FIELD.wonderChance
+      ? WONDERS[Math.floor(rng() * WONDERS.length)]!
+      : rng() < FIELD.landmarkChance
+        ? LANDMARKS[Math.floor(rng() * LANDMARKS.length)]!
+        : null;
 
     if (this.landmark) {
       const where = new THREE.Vector3(
@@ -273,11 +369,22 @@ class Region {
       }
 
       case "blackhole": {
-        // The one thing out here that is not lit: a sphere of pure black with
-        // a bright disc around it. No lens flare and no distortion shader —
-        // the design allows one flare per scene at most, and the logo already
-        // spent it. What sells this is the hole being genuinely black against a
-        // sky that never is.
+        /*
+          The one thing out here that is not lit: a sphere of pure black, with
+          light falling around it.
+
+          The first version was a flat ring of one flat colour, and it looked
+          like a flat ring of one flat colour — a paper donut with a hole
+          punched in it. Three things fix that, none of them a distortion
+          shader: the design allows one lens flare per scene at most and the
+          logo already spent it.
+
+          The disc's brightness is a *function of radius* now, blazing at the
+          inner edge and falling away outward, which is where a disc gets its
+          sense of depth from. It has a hot side, because a uniform annulus has
+          no volume. And there are two of them at slightly different angles, so
+          the silhouette is never a clean ellipse from any direction.
+        */
         const group = new THREE.Group();
         const radius = randRange(rng, 14, 26);
 
@@ -290,27 +397,216 @@ class Region {
         core.frustumCulled = false;
         group.add(core);
 
-        const disc = new THREE.Mesh(
-          new THREE.RingGeometry(radius * 1.35, radius * 3.1, 48, 1),
+        const discs: THREE.Mesh[] = [];
+        for (let i = 0; i < 2; i++) {
+          const inner = radius * 1.28;
+          const outer = radius * (3.2 + i * 0.7);
+          const material = accretionMaterial(rng() * Math.PI * 2, i === 0 ? 1 : 0.55);
+          material.uniforms.uInner!.value = inner;
+          material.uniforms.uOuter!.value = outer;
+          const disc = new THREE.Mesh(
+            new THREE.RingGeometry(inner, outer, 72, 3),
+            material,
+          );
+          disc.frustumCulled = false;
+          // The second is tipped off the first, so the pair never resolves into
+          // one clean plane however you come at it.
+          if (i === 1) disc.rotation.set(randRange(rng, 0.12, 0.3), 0, randRange(rng, -0.4, 0.4));
+          group.add(disc);
+          discs.push(disc);
+        }
+
+        // The photon ring: a thin, very bright edge hugging the horizon. This
+        // is the detail that makes the black read as a hole with something
+        // behind it rather than as a dark sphere.
+        const halo = new THREE.Mesh(
+          new THREE.RingGeometry(radius * 1.01, radius * 1.16, 64, 1),
           new THREE.MeshBasicMaterial({
-            color: 0xffd9a0,
+            color: 0xfff0cf,
             transparent: true,
-            opacity: 0.5,
+            opacity: 0.85,
             side: THREE.DoubleSide,
             depthWrite: false,
             blending: THREE.AdditiveBlending,
           }),
         );
-        disc.frustumCulled = false;
-        group.add(disc);
+        halo.frustumCulled = false;
+        group.add(halo);
+        this.halo = halo;
 
         group.position.copy(where);
         group.rotation.set(randRange(rng, 0.5, 1.1), rng() * Math.PI, 0);
         this.group.add(group);
 
-        this.spinner = disc;
+        this.spinner = discs[0]!;
         this.spinRate = randRange(rng, 0.05, 0.11);
-        this.disc = disc;
+        this.discs = discs;
+        break;
+      }
+
+      case "giant": {
+        /*
+          A ringed gas giant, and the most spectacular thing in the sector.
+
+          Enormous, far off the lane, and tipped over — a ring system seen
+          exactly edge-on is a line, and seen exactly face-on is the flat donut
+          this whole pass exists to get rid of. Somewhere in between is where it
+          reads as an object with a plane through it.
+        */
+        const group = new THREE.Group();
+        const radius = randRange(rng, 150, 280);
+        const centre = where
+          .clone()
+          .setY(where.y + (rng() < 0.5 ? -1 : 1) * randRange(rng, 380, 620));
+
+        const bodyColour = new THREE.Color(PALETTE.planetRust).lerp(
+          new THREE.Color(0xd9b06a),
+          rng() * 0.7,
+        );
+        const body = new THREE.Mesh(
+          new THREE.IcosahedronGeometry(radius, 3),
+          new THREE.MeshLambertMaterial({ color: bodyColour, flatShading: true }),
+        );
+        body.frustumCulled = false;
+        group.add(body);
+
+        // Three bands rather than one sheet, with gaps between them, because a
+        // single annulus is exactly the flat donut.
+        for (let i = 0; i < 3; i++) {
+          const inner = radius * (1.4 + i * 0.42);
+          const ring = new THREE.Mesh(
+            new THREE.RingGeometry(inner, inner + radius * (0.16 + rng() * 0.2), 96, 1),
+            new THREE.MeshBasicMaterial({
+              color: new THREE.Color(0xc9b489).lerp(bodyColour, rng() * 0.5),
+              transparent: true,
+              opacity: 0.16 + rng() * 0.16,
+              side: THREE.DoubleSide,
+              depthWrite: false,
+            }),
+          );
+          ring.frustumCulled = false;
+          group.add(ring);
+        }
+
+        group.position.copy(centre);
+        // Tipped well off both edge-on and face-on.
+        group.rotation.set(randRange(rng, 0.5, 1.0), rng() * Math.PI, randRange(rng, -0.3, 0.3));
+        this.group.add(group);
+        break;
+      }
+
+      case "comet": {
+        // A bright nucleus with a long tail, and the tail points the way a
+        // comet's does: away from the sector's star, not backward along its
+        // path. Built as a taper rather than a cylinder so it thins out.
+        const group = new THREE.Group();
+        const head = new THREE.Mesh(
+          new THREE.IcosahedronGeometry(randRange(rng, 3, 6), 1),
+          new THREE.MeshBasicMaterial({ color: 0xdfeeff }),
+        );
+        head.frustumCulled = false;
+        group.add(head);
+
+        const length = randRange(rng, 120, 240);
+        const tail = new THREE.Mesh(
+          new THREE.ConeGeometry(randRange(rng, 7, 14), length, 7, 1, true),
+          new THREE.MeshBasicMaterial({
+            color: 0xa8d8ff,
+            transparent: true,
+            opacity: 0.2,
+            side: THREE.DoubleSide,
+            depthWrite: false,
+            blending: THREE.AdditiveBlending,
+          }),
+        );
+        tail.frustumCulled = false;
+        // Wide end at the head, tapering away behind it.
+        tail.rotation.x = Math.PI / 2;
+        tail.position.z = -length / 2;
+        group.add(tail);
+
+        group.position.copy(where);
+        group.lookAt(where.clone().add(new THREE.Vector3(0.45, -0.62, -0.64)));
+        this.group.add(group);
+        break;
+      }
+
+      case "hulk": {
+        // A capital ship that stopped being one. Far bigger than anything else
+        // out here, broken into pieces that drifted apart and stayed that way.
+        const pieces = Math.floor(randRange(rng, 3, 6));
+        let along = 0;
+        for (let i = 0; i < pieces; i++) {
+          const length = randRange(rng, 24, 52);
+          const height = randRange(rng, 9, 16);
+          const width = randRange(rng, 11, 19);
+
+          const euler = new THREE.Euler(
+            randRange(rng, -0.25, 0.25),
+            randRange(rng, -0.3, 0.3),
+            randRange(rng, -0.35, 0.35),
+          );
+          matrix.makeRotationFromEuler(euler);
+          // Drifted apart along the hull's own line, with gaps where the breaks
+          // are — a ship in pieces, not a ship with seams.
+          matrix.setPosition(
+            where.x + along + randRange(rng, -6, 6),
+            where.y + randRange(rng, -7, 7),
+            where.z + randRange(rng, -9, 9),
+          );
+          tint.setHex(0x59637a).lerp(ROCK_COOL, rng() * 0.5);
+          emit(merged, new THREE.BoxGeometry(length, height, width), matrix, tint);
+          along += length + randRange(rng, 8, 26);
+
+          // One rib of exposed frame at most breaks, which is what says this
+          // was torn rather than parked.
+          if (rng() < 0.6) {
+            matrix.setPosition(
+              where.x + along - randRange(rng, 6, 14),
+              where.y + randRange(rng, -5, 5),
+              where.z + randRange(rng, -7, 7),
+            );
+            tint.setHex(0x7d879b);
+            emit(merged, new THREE.BoxGeometry(2.2, height * 1.3, width * 1.15), matrix, tint);
+          }
+        }
+        break;
+      }
+
+      case "crystals": {
+        // A shoal of glowing shards. The only thing in the sector that makes
+        // its own light other than the star and the nebula, and it is rare
+        // enough to stay a surprise.
+        const colour = rng() < 0.5 ? 0x8fd8ff : 0xc9a3ff;
+        const count = Math.floor(randRange(rng, 18, 40));
+        const group = new THREE.Group();
+
+        for (let i = 0; i < count; i++) {
+          const shard = new THREE.Mesh(
+            new THREE.OctahedronGeometry(randRange(rng, 1.6, 6.5), 0),
+            new THREE.MeshBasicMaterial({
+              color: colour,
+              transparent: true,
+              opacity: 0.32 + rng() * 0.4,
+              depthWrite: false,
+              blending: THREE.AdditiveBlending,
+            }),
+          );
+          shard.frustumCulled = false;
+          shard.scale.set(1, randRange(rng, 1.8, 4.5), 1);
+          shard.position.set(
+            randRange(rng, -60, 60),
+            randRange(rng, -30, 30),
+            randRange(rng, -60, 60),
+          );
+          shard.rotation.set(rng() * Math.PI, rng() * Math.PI, rng() * Math.PI);
+          group.add(shard);
+        }
+
+        group.position.copy(where);
+        this.group.add(group);
+        this.spinner = group;
+        this.spinRate = randRange(rng, 0.008, 0.02);
         break;
       }
     }
@@ -318,11 +614,21 @@ class Region {
 
   update(dt: number, elapsed: number): void {
     if (this.spinner) this.spinner.rotation.z += this.spinRate * dt;
-    if (this.disc) {
-      // The disc breathes very slightly rather than sitting flat. Slow enough
-      // that it is felt rather than watched, and never a pulse you can count.
-      const material = this.disc.material as THREE.MeshBasicMaterial;
-      material.opacity = 0.42 + Math.sin(elapsed * 0.31) * 0.08;
+
+    // The discs turn at different rates, which is what stops the pair reading
+    // as one rigid object with a seam in it.
+    for (let i = 0; i < this.discs.length; i++) {
+      const disc = this.discs[i]!;
+      disc.rotation.z += this.spinRate * (i === 0 ? 1 : -0.62) * dt;
+      const material = disc.material as THREE.ShaderMaterial;
+      material.uniforms.uTime!.value = elapsed;
+    }
+
+    if (this.halo) {
+      // Breathes very slightly rather than sitting flat. Slow enough to be
+      // felt rather than watched, and never a pulse anyone could count.
+      const material = this.halo.material as THREE.MeshBasicMaterial;
+      material.opacity = 0.74 + Math.sin(elapsed * 0.31) * 0.12;
     }
   }
 

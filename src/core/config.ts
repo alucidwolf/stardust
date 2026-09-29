@@ -109,6 +109,22 @@ export const FLIGHT = {
   maxBank: 0.85,
   /** How quickly the eased arrow-key axes catch up with the keys themselves. */
   keySteerResponse: 3.2,
+  /**
+   * Cruise multiplier while Shift is held.
+   *
+   * Modest on purpose. This is a drift, and the pleasure of a boost here is
+   * the engines lighting up and the stars stretching, not arriving sooner.
+   */
+  boostScale: 1.85,
+  /**
+   * How quickly the boost comes in and goes out, as a fraction per second.
+   *
+   * Eased rather than switched, and out faster than in: leaning on it should
+   * build, and letting go should feel like easing off a throttle rather than
+   * hitting a wall.
+   */
+  boostAttack: 1.6,
+  boostRelease: 2.4,
 } as const;
 
 export const POINTER = {
@@ -138,8 +154,16 @@ export const FIELD = {
   /** Roughly how many clusters a region holds. Most regions are empty sky. */
   clustersPerRegion: 1.7,
   rocksPerCluster: [6, 22] as [number, number],
-  /** Roughly one region in this many carries a landmark. */
+  /** Roughly one region in this many carries an ordinary landmark. */
   landmarkChance: 1 / 9,
+  /**
+   * And one in this many carries something worth remembering.
+   *
+   * Rolled separately and far rarer, because rarity is the entire mechanism by
+   * which any of them is impressive. A ringed giant you meet every other
+   * region is scenery; one you meet twice an hour is an event.
+   */
+  wonderChance: 1 / 34,
 } as const;
 
 /**

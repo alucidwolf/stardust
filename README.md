@@ -20,13 +20,13 @@ asteroid fields, derelict stations and the occasional black hole.
 | 1 | Scaffold, starfield, nebula, stardust, diorama pass, boot and title card | **done** |
 | 2 | HUD hints, unit trigger, unit select window, announce, telemetry readout | **done** |
 | 3 | The four units, their paint, engine glow and flight feel | **done** |
-| 4 | Asteroid and debris fields, landmarks, autopilot wander | **done** |
-| 4b | Speed streaks, the star cycle, remembering where you were | to do |
+| 4 | Asteroid and debris fields, landmarks, wonders, autopilot wander, boost, speed streaks | **done** |
+| 4b | The star cycle, remembering where you were | to do |
 | 5 | Engine hum, far-off notes, UI ticks and tones | to do |
 
-Not built yet: the sound, the star cycle, speed streaks, and remembering your
-sortie between visits. There is also no sound control in the HUD, because there
-is nothing yet for it to control.
+Not built yet: the sound, the star cycle, and remembering your sortie between
+visits. There is also no sound control in the HUD, because there is nothing yet
+for it to control.
 
 ## Controls
 
@@ -38,6 +38,8 @@ is nothing yet for it to control.
 | **Arrow keys** | Trim the course — a nudge, not a rudder held over. About eleven degrees a second, a fifth of the cursor's rate, so a tap is a small correction and a long hold still eventually brings you about. Speed never changes. |
 | **Flying…** | The button bottom-left opens the unit window. The sector keeps moving behind it, and choosing is instant — position, heading and speed all carry over. |
 | **1**–**4**, **Tab** | The same thing without opening anything. Numbers pick one outright, Tab walks the list (Shift+Tab backwards). |
+| **Shift** | Boost. Hold it and the engines light, the binders open, the stars streak and the velocity readout goes live. It eases in and out rather than switching, and there is no brake — this is a drift, and a unit that can crawl is a unit that can get stuck. |
+| **Autopilot**, **A** | Hand the stick back. Touching the steering drops the autopilot and *leaves* it dropped; this is the way back. The button reads as the state, lit gold when the autopilot has it. |
 | **N** | A new sector. Different seed, different unit, different sky. |
 | **H** | Toggle the overlay. |
 
@@ -81,6 +83,29 @@ quietly become mostly navy. Measured by area rather than by plate count,
 because counting plates would call a unit mostly gold when its gold is four
 vents the size of a thumbnail.
 
+## Rare things, and rarer things
+
+Two tiers, rolled separately, because rarity is the entire mechanism by which
+any of them is impressive. A ringed giant you meet every other region is
+scenery; one you meet twice an hour is an event.
+
+**Landmarks**, about one region in nine: a planet, a derelict station ring
+still slowly turning, a gate frame standing in nothing, a drifting container
+yard.
+
+**Wonders**, about one in thirty-four:
+
+- a **black hole** — the only unlit thing out here, which works precisely
+  because the sky it sits against never is;
+- a **ringed gas giant**, tipped well off both edge-on and face-on, with three
+  banded rings rather than one sheet;
+- a **comet**, its tail pointing away from the sector's star rather than
+  backward along its path;
+- the **hulk** of a capital ship, broken into pieces that drifted apart and
+  stayed that way;
+- a **crystal shoal**, the only thing besides the star and the nebula that
+  makes its own light.
+
 ## The sector
 
 Debris comes in **clusters with empty space between them**, not sprinkled
@@ -89,14 +114,6 @@ characteristic failure where everywhere is equally interesting, which means
 nowhere is. Rocks are icosahedra squashed and turned at random, warm rust mixed
 with cool grey per rock rather than per cluster, and most are small — the
 occasional big one is what gives a cluster a scale to read the rest against.
-
-Roughly **one region in nine** carries something worth flying to: a planet, a
-derelict station ring still slowly turning, a gate frame standing in nothing, a
-drifting container yard, or a black hole. The black hole is the one thing out
-here that is not lit — a genuinely black sphere with a bright disc around it,
-which works precisely because the sky it sits against never is. No lens flare
-and no distortion shader: the design allows one flare per scene at most, and
-the logo already spent it.
 
 Space is built in **regions** the way Currents built the seabed in chunks — a
 cube generated from a hash of its own coordinates, so a region rebuilds
@@ -125,10 +142,18 @@ covers only a few percent of the ground it travels. An earlier version of the
 check tested that number, failed a good autopilot, and would have passed a
 circling one with a wide enough radius.
 
-And what you steer to, you keep. Letting go hands control to the autopilot from
-**your** heading, not from wherever its waves had got to — the baseline is
-re-read from the pilot on every frame they are flying, so there is no handover
-moment to detect and therefore none to miss.
+And what you steer to, you keep — in two senses. The autopilot resumes from
+**your** heading rather than from wherever its waves had got to, and more than
+that, it does not resume at all unless you ask it to.
+
+Touching the steering hands the stick over and it stays handed over. An
+autopilot that quietly takes back control a few seconds after you stop moving
+the mouse is one that thinks it knows better than the pilot, and the complaint
+that produced this was a ship that kept undoing the heading it had just been
+given. Which means there has to be a way back, because an autopilot you can
+only leave is a trap — hence a button, in the corner by the readout, and `A` as
+its accelerator. It reads as the state rather than the action: lit gold means
+the autopilot has it, the same way a unit card marks the unit you are flying.
 
 ## The arrow keys, and a sign that was wrong
 
@@ -250,6 +275,26 @@ the time the sector's one light source spends the entire flight behind your
 shoulder, and because it also tints the fill light, the sector loses its colour
 without ever showing you why. Measured over a long drift, a full-circle bearing
 lit not one pixel.
+
+**It is a body, not a picture of one.** The first version was a single
+camera-facing plane with two smooth elliptical falloffs, and it looked exactly
+like what it was: a flat disc with a soft edge. Two things gave it away. Smooth
+falloffs have no structure — anything whose brightness is a clean function of
+distance-from-centre reads as an airbrush however carefully the ellipse is
+shaped — and one plane is one plane, since every part of it is the same
+distance away and turns with the camera in lockstep.
+
+So the shape is now fractal noise, warped by more noise so the shapes curl
+rather than blob, and the elliptical falloff only decides where the cloud
+*ends*. And there are four layers at different distances, scales, rotations and
+tints, holding station relative to one another so that turning your head slides
+them across each other the way parts of one cloud at different depths would.
+
+The same complaint applied to the black hole's accretion disc, which was
+literally a flat ring of one flat colour. Its brightness is now a function of
+radius — blazing at the inner edge, falling away outward — with a hot side, a
+thin photon ring hugging the horizon, and a second disc tipped off the first so
+the silhouette never resolves into a clean ellipse from any direction.
 
 It is also held well inside the frustum rather than out on the star shell. The
 distance is arbitrary — it travels with the camera and ignores depth, so only

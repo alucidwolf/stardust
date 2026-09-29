@@ -228,7 +228,25 @@
             <dt>Control</dt>
             <dd id="read-mode">AUTO</dd>
           </dl>
-          <span class="micro">H hints &middot; N new sector</span>
+
+          <!--
+            Reads as the state, not the action: lit gold means the autopilot has
+            it. Taking the stick drops it and leaves it dropped, so this is the
+            way back — which is why it is a button and not only a key.
+          -->
+          <button
+            id="autopilot-toggle"
+            class="plate toggle"
+            type="button"
+            aria-pressed="true"
+            aria-label="Autopilot engaged. Press to fly manually."
+          >
+            <span class="toggle__pip" aria-hidden="true"></span>
+            Autopilot
+            <span class="plate key" aria-hidden="true">A</span>
+          </button>
+
+          <span class="micro">Shift boost &middot; H hints &middot; N new sector</span>
         </div>
       </div>
     </div>

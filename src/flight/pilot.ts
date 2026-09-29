@@ -60,6 +60,16 @@ export class Pilot {
   /** How hard it is turning right now, for the engines and the speed streaks. */
   turnEffort = 0;
 
+  /**
+   * How far into the boost it is, 0 to 1.
+   *
+   * Eased rather than switched, so the engines and the streaks have something
+   * continuous to read and nothing in the scene changes state on a single
+   * frame. Everything that responds to the boost responds to this, not to the
+   * key — which is what keeps the key and the picture in step.
+   */
+  boost = 0;
+
   constructor() {
     this.object.position.copy(this.position);
   }
@@ -70,7 +80,13 @@ export class Pilot {
     return out.set(Math.sin(this.yaw) * cp, Math.sin(this.pitch), Math.cos(this.yaw) * cp);
   }
 
-  update(dt: number, elapsed: number, command: SteerCommand): void {
+  update(
+    dt: number,
+    elapsed: number,
+    command: SteerCommand,
+    /** True while the pilot is leaning on it. */
+    boosting = false,
+  ): void {
     // --- Turn toward the commanded heading, rate limited ---------------------
     const maxTurn = command.turnRate * dt;
 
@@ -103,10 +119,20 @@ export class Pilot {
     this.turnEffort += (effort - this.turnEffort) * Math.min(1, dt * 2.6);
 
     // --- Cruise --------------------------------------------------------------
+    // In faster than it comes out, so leaning on it builds and letting go eases
+    // off rather than hitting a wall.
+    const rate = boosting ? FLIGHT.boostAttack : FLIGHT.boostRelease;
+    this.boost += ((boosting ? 1 : 0) - this.boost) * Math.min(1, dt * rate);
+    if (!boosting && this.boost < 0.002) this.boost = 0;
+
     // A slow sine on speed keeps long stretches from looking metronomic.
     const breath = Math.sin((elapsed / FLIGHT.speedBreathPeriod) * TWO_PI);
+    const push = 1 + (FLIGHT.boostScale - 1) * this.boost;
     this.speed =
-      FLIGHT.cruiseSpeed * this.speedScale * (1 + breath * FLIGHT.speedBreathAmount);
+      FLIGHT.cruiseSpeed *
+      this.speedScale *
+      push *
+      (1 + breath * FLIGHT.speedBreathAmount);
 
     this.position.addScaledVector(this.forward(SCRATCH), this.speed * dt);
 

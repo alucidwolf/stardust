@@ -286,6 +286,45 @@ console.log("\nthe units, on the arrow keys");
   }
 }
 
+console.log("\nthe boost");
+{
+  /*
+    Shift has to actually move the ship, ease rather than switch, and let go.
+
+    The easing is not decoration: everything that reacts to the boost — the
+    engines, the binders, the speed streaks — reads the same continuous number,
+    so a boost that snapped between 0 and 1 would make all of them change state
+    on a single frame. Nothing in this design is allowed to do that.
+  */
+  const cruise = new Pilot();
+  const pushed = new Pilot();
+  const level = { yaw: 0, pitch: 0, turnRate: 0 };
+
+  const seconds = 8;
+  for (let i = 0; i < seconds / DT; i++) {
+    cruise.update(DT, i * DT, level, false);
+    pushed.update(DT, i * DT, level, true);
+  }
+
+  const gain = pushed.position.length() / cruise.position.length();
+  check(gain > 1.5, `boosting covers more ground (${gain.toFixed(2)}x over eight seconds)`);
+  check(gain < FLIGHT.boostScale + 0.02, `and no more than it promises (${gain.toFixed(2)}x, cap ${FLIGHT.boostScale})`);
+  check(pushed.boost > 0.97, `it reaches full boost when held (${pushed.boost.toFixed(3)})`);
+
+  // Eased in. A single frame of holding must not arrive at full thrust.
+  const nudged = new Pilot();
+  nudged.update(DT, 0, level, true);
+  check(nudged.boost < 0.2, `one frame of Shift is not full thrust (${nudged.boost.toFixed(3)})`);
+
+  // And it lets go. A boost that never quite returns to zero leaves the
+  // engines lit and the streaks drawn for the rest of the session.
+  for (let i = 0; i < 4 / DT; i++) pushed.update(DT, i * DT, level, false);
+  check(pushed.boost === 0, `it returns to exactly zero on release (${pushed.boost})`);
+
+  console.log(`  gain          ${gain.toFixed(2)}x over eight seconds`);
+  console.log(`  release       back to ${pushed.boost} after four seconds`);
+}
+
 console.log("\nhow fast each one actually goes");
 {
   /*

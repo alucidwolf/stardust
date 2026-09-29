@@ -568,3 +568,51 @@
     transform: none;
   }
 }
+
+/* -- Autopilot toggle ------------------------------------------------------- */
+
+/*
+  Reads as the state rather than the action. Lit gold means the autopilot has
+  it, the same way a unit card marks the unit you are flying — a button that
+  says what it *will* do has to be read twice every time, and this one sits in
+  the corner of a screen nobody is studying.
+*/
+.toggle {
+  pointer-events: auto;
+  --sd-c: var(--cut-sm);
+  appearance: none;
+  border: 0;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: 0.4rem 0.5rem 0.4rem 0.7rem;
+  font: 600 0.68rem/1 var(--font-ui);
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--ink-dim);
+  transition: color 120ms var(--ease-snap);
+}
+
+.toggle:hover {
+  --sd-edge: var(--signal);
+}
+
+.toggle[data-on="true"] {
+  color: var(--ink);
+  --sd-edge: var(--armor-gold);
+}
+
+/* A cut pip, not a dot: there are no circles in this interface. */
+.toggle__pip {
+  width: 0.5rem;
+  height: 0.5rem;
+  flex: none;
+  background: var(--line-strong);
+  clip-path: polygon(50% 0, 100% 50%, 50% 100%, 0 50%);
+  transition: background 120ms var(--ease-snap);
+}
+
+.toggle[data-on="true"] .toggle__pip {
+  background: var(--armor-gold);
+}

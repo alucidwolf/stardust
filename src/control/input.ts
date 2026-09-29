@@ -43,6 +43,16 @@ export interface InputState {
    * autopilot mid-lean.
    */
   keySteering: boolean;
+  /**
+   * True while Shift is held: the pilot is asking for more.
+   *
+   * Tracked as a held state rather than as a press, because boost is a thing
+   * you lean on and let go of. It is also cleared on blur along with the
+   * arrows, for the same reason — a keyup that arrives while the window is not
+   * focused is never delivered, so alt-tabbing mid-boost would otherwise leave
+   * the ship accelerating forever with nothing held down to explain it.
+   */
+  boosting: boolean;
   /** Cursor in normalised device coordinates, for unprojecting a steer target. */
   ndcX: number;
   ndcY: number;
@@ -78,6 +88,7 @@ export function createInput(target: HTMLElement): Input {
     steerX: 0,
     steerY: 0,
     keySteering: false,
+    boosting: false,
     ndcX: 0,
     ndcY: 0,
     idleTime: 0,
@@ -186,6 +197,11 @@ export function createInput(target: HTMLElement): Input {
   const onKeyDown = (event: KeyboardEvent) => {
     markActive();
 
+    // Either Shift. Boost is not an arrow and is not disabled with them: it is
+    // still reasonable to boost while a window is open and the keyboard has
+    // been handed over, because it steers nothing.
+    if (event.key === "Shift") state.boosting = true;
+
     const arrow = ARROWS[event.key];
     // Leave modified arrows alone — Alt+Left is the browser's back button, and
     // taking it over would be a genuinely annoying thing for a page to do.
@@ -200,6 +216,7 @@ export function createInput(target: HTMLElement): Input {
 
   const onKeyUp = (event: KeyboardEvent) => {
     markActive();
+    if (event.key === "Shift") state.boosting = false;
     const arrow = ARROWS[event.key];
     if (arrow) held[arrow] = false;
   };
@@ -213,6 +230,7 @@ export function createInput(target: HTMLElement): Input {
    */
   const releaseKeys = () => {
     held.left = held.right = held.up = held.down = false;
+    state.boosting = false;
   };
 
   target.addEventListener("pointerdown", onPointerDown);
@@ -249,6 +267,9 @@ export function createInput(target: HTMLElement): Input {
     },
     get keySteering() {
       return state.keySteering;
+    },
+    get boosting() {
+      return state.boosting;
     },
     get ndcX() {
       return state.ndcX;

@@ -23,8 +23,10 @@ export interface Telemetry {
   heading: number;
   /** Units per second. */
   speed: number;
-  /** True while the pilot is steering rather than the autopilot. */
+  /** True while the pilot has the stick rather than the autopilot. */
   piloted: boolean;
+  /** How far into the boost, 0 to 1. */
+  boost: number;
 }
 
 export class Hud {
@@ -91,6 +93,10 @@ export class Hud {
 
     this.headingEl.textContent = `${Math.round(telemetry.heading).toString().padStart(3, "0")}°`;
     this.speedEl.textContent = telemetry.speed.toFixed(1);
+    // Lit while the boost is in, because the velocity moving on its own with
+    // nothing to explain it is the sort of thing an instrument should account
+    // for. It is the one number here that the pilot can change.
+    this.speedEl.classList.toggle("is-live", telemetry.boost > 0.05);
     this.modeEl.textContent = telemetry.piloted ? "MANUAL" : "AUTO";
     this.modeEl.classList.toggle("is-live", telemetry.piloted);
   }
