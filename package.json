@@ -11,7 +11,8 @@
     "typecheck": "tsc --noEmit",
     "verify:starfield": "esbuild tools/starfield-check.ts --bundle --platform=node --format=esm --external:three --outfile=tools/.starfield-check.mjs && node tools/.starfield-check.mjs",
     "verify:units": "esbuild tools/units-check.ts --bundle --platform=node --format=esm --external:three --outfile=tools/.units-check.mjs && node tools/.units-check.mjs",
-    "verify:steering": "esbuild tools/steering-check.ts --bundle --platform=node --format=esm --external:three --outfile=tools/.steering-check.mjs && node tools/.steering-check.mjs"
+    "verify:steering": "esbuild tools/steering-check.ts --bundle --platform=node --format=esm --external:three --outfile=tools/.steering-check.mjs && node tools/.steering-check.mjs",
+    "verify:approach": "esbuild tools/approach-check.ts --bundle --platform=node --format=esm --external:three --outfile=tools/.approach-check.mjs && node tools/.approach-check.mjs"
   },
   "dependencies": {
     "three": "^0.186.0"

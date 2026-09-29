@@ -70,7 +70,9 @@ function emit(
   matrix: THREE.Matrix4,
   colour: THREE.Color,
 ): void {
-  const flat = geometry.toNonIndexed();
+  // Icosahedra arrive non-indexed already, and asking again is both wasted
+  // work and a warning per rock — of which there are tens of thousands.
+  const flat = geometry.getIndex() ? geometry.toNonIndexed() : geometry;
   const position = flat.getAttribute("position") as THREE.BufferAttribute;
   const vertex = new THREE.Vector3();
 
@@ -80,7 +82,7 @@ function emit(
     into.colours.push(colour.r, colour.g, colour.b);
   }
 
-  flat.dispose();
+  if (flat !== geometry) flat.dispose();
   geometry.dispose();
 }
 
@@ -162,18 +164,43 @@ function accretionMaterial(hotAngle: number, strength: number): THREE.ShaderMate
 }
 
 /**
+ * Everything random about one boulder, drawn but not yet built.
+ *
+ * Split from the geometry on purpose. A region generated for its landmark
+ * alone still has to take every draw a near one would, or the generator ends
+ * up at a different point in its sequence and the same region comes out
+ * holding a different landmark depending on how you approached it. But it must
+ * not *build* the rocks — there are tens of thousands of them across the
+ * landmark radius, and making each one only to throw it away was costing more
+ * than the geometry it was avoiding.
+ */
+interface RockSpec {
+  detail: number;
+  scale: [number, number, number];
+  turn: [number, number, number];
+}
+
+function rockSpec(rng: Rng): RockSpec {
+  return {
+    detail: rng() < 0.25 ? 1 : 0,
+    scale: [randRange(rng, 0.6, 1.3), randRange(rng, 0.5, 1.2), randRange(rng, 0.6, 1.3)],
+    turn: [rng() * Math.PI, rng() * Math.PI, rng() * Math.PI],
+  };
+}
+
+/**
  * One boulder.
  *
  * An icosahedron squashed unevenly and turned at random, so every rock is a
  * different chunky gem cut from the same stone. Detail 0 keeps the facets big
  * enough to count, which is the whole look.
  */
-function rock(rng: Rng, radius: number): THREE.BufferGeometry {
-  const geometry = new THREE.IcosahedronGeometry(radius, rng() < 0.25 ? 1 : 0);
-  geometry.scale(randRange(rng, 0.6, 1.3), randRange(rng, 0.5, 1.2), randRange(rng, 0.6, 1.3));
-  geometry.rotateX(rng() * Math.PI);
-  geometry.rotateY(rng() * Math.PI);
-  geometry.rotateZ(rng() * Math.PI);
+function rock(spec: RockSpec, radius: number): THREE.BufferGeometry {
+  const geometry = new THREE.IcosahedronGeometry(radius, spec.detail);
+  geometry.scale(spec.scale[0], spec.scale[1], spec.scale[2]);
+  geometry.rotateX(spec.turn[0]);
+  geometry.rotateY(spec.turn[1]);
+  geometry.rotateZ(spec.turn[2]);
   return geometry;
 }
 
@@ -183,6 +210,15 @@ function rock(rng: Rng, radius: number): THREE.BufferGeometry {
  * Everything static merges into one mesh; a landmark that needs to move or
  * glow keeps its own object so it can be animated.
  */
+/**
+ * How much of a region is built.
+ *
+ * Landmarks are streamed from much further out than debris, so most live
+ * regions are `landmark` only — the rocks in them are too small to see from
+ * that range and far too many to build for nothing.
+ */
+type Detail = "full" | "landmark";
+
 class Region {
   readonly group = new THREE.Group();
   readonly landmark: LandmarkKind | null;
@@ -192,18 +228,33 @@ class Region {
   private discs: THREE.Mesh[] = [];
   private halo: THREE.Mesh | null = null;
 
+  /**
+   * Everything belonging to the landmark, which fades in as you approach.
+   *
+   * Kept apart from the debris mesh for exactly that reason: they share a
+   * region but not a distance at which they should become visible.
+   */
+  private readonly fading: THREE.Material[] = [];
+  private readonly landmarkGroup = new THREE.Group();
+  /** How far in the fade has got, so anything animating opacity can respect it. */
+  private fadeLevel = 0;
+  /** Where the landmark is, for measuring that distance. */
+  private readonly landmarkAt = new THREE.Vector3();
+
   constructor(
     scene: THREE.Scene,
     sectorSeed: number,
     readonly rx: number,
     readonly ry: number,
     readonly rz: number,
+    readonly detail: Detail,
   ) {
     const rng = regionRng(sectorSeed, rx * 73856093 ^ ry, rz);
     const size = FIELD.regionSize;
     const origin = new THREE.Vector3(rx * size, ry * size, rz * size);
 
     const merged: Merged = { positions: [], colours: [] };
+    const landmarkMerged: Merged = { positions: [], colours: [] };
     const matrix = new THREE.Matrix4();
     const tint = new THREE.Color();
     const at = new THREE.Vector3();
@@ -244,7 +295,21 @@ class Region {
         // Most rocks are small. The occasional big one is what gives a cluster
         // a scale to read the rest against.
         const radius = randRange(rng, 0.8, 3.2) * (rng() < 0.08 ? 3.4 : 1);
-        emit(merged, rock(rng, radius), matrix, tint);
+        const spec = rockSpec(rng);
+
+        /*
+          Every draw above happens whatever the detail level, and only the
+          geometry is skipped.
+
+          That is not tidiness — the whole sector depends on it. A region is
+          generated from a hash of its own coordinates, so it must come out
+          identical however you arrive at it. Skipping the draws for a distant
+          region would leave the generator at a different point in its sequence
+          by the time it reached the landmark, and the same region would then
+          hold a different landmark, somewhere else, depending on whether you
+          had happened to pass nearby before.
+        */
+        if (this.detail === "full") emit(merged, rock(spec, radius), matrix, tint);
       }
     }
 
@@ -261,7 +326,7 @@ class Region {
         origin.y + randRange(rng, -size * 0.25, size * 0.25),
         origin.z + randRange(rng, size * 0.2, size * 0.8),
       );
-      this.buildLandmark(this.landmark, rng, where, merged, matrix, tint);
+      this.buildLandmark(this.landmark, rng, where, landmarkMerged, matrix, tint);
     }
 
     const geometry = finish(merged);
@@ -274,7 +339,84 @@ class Region {
       this.group.add(mesh);
     }
 
-    scene.add(this.group);
+    const landmarkGeometry = finish(landmarkMerged);
+    if (landmarkGeometry) {
+      const material = new THREE.MeshLambertMaterial({
+        vertexColors: true,
+        flatShading: true,
+        transparent: true,
+        opacity: 0,
+      });
+      const mesh = new THREE.Mesh(landmarkGeometry, material);
+      mesh.frustumCulled = false;
+      this.landmarkGroup.add(mesh);
+      material.userData.peak = 1;
+      this.fading.push(material);
+    }
+
+    /*
+      Collect every material the landmark owns, whichever way it was built,
+      and remember what each was *meant* to look like before dimming it.
+
+      That last part matters more than it sounds. These do not all start at
+      full strength — a planetary ring sits at a fifth, a comet tail at a
+      fifth, the crystals vary per shard — so fading them by setting an opacity
+      would quietly promote every one of them to solid on arrival. The fade is
+      a multiplier on what each already was, not a value of its own.
+
+      And the accretion disc is a shader, whose `opacity` is a property nothing
+      reads. It fades on the uniform its own shader actually multiplies by.
+    */
+    this.landmarkGroup.traverse((node) => {
+      const mesh = node as THREE.Mesh;
+      if (!mesh.isMesh) return;
+      for (const m of Array.isArray(mesh.material) ? mesh.material : [mesh.material]) {
+        if (!m || this.fading.includes(m)) continue;
+
+        const shader = m as THREE.ShaderMaterial;
+        if (shader.isShaderMaterial && shader.uniforms.uStrength) {
+          m.userData.peak = shader.uniforms.uStrength.value;
+          shader.uniforms.uStrength.value = 0;
+        } else {
+          m.userData.peak = m.opacity;
+          m.transparent = true;
+          m.opacity = 0;
+        }
+
+        this.fading.push(m);
+      }
+    });
+
+    if (this.landmarkGroup.children.length > 0) this.group.add(this.landmarkGroup);
+
+    /*
+      Where the landmark actually is, measured rather than assumed.
+
+      The obvious anchor is the point the region picked for it, and that point
+      is wrong for exactly the landmarks this fade exists for. A planet is
+      slung four to six hundred units above or below the lane so that it is
+      scenery you pass rather than an obstacle; a gas giant further still. Timing
+      the fade against the anchor faded them in against a place they were not,
+      so a planet could be solid at eighteen hundred when it was supposed to be
+      halfway through appearing — which is the original complaint, in miniature,
+      surviving its own fix.
+
+      Measured once, here, over whatever the landmark turned out to be built
+      from: merged geometry carrying world coordinates, positioned groups, or
+      both.
+    */
+    if (this.landmark) {
+      this.landmarkGroup.updateMatrixWorld(true);
+      new THREE.Box3().setFromObject(this.landmarkGroup).getCenter(this.landmarkAt);
+    }
+
+    // Hidden until it is close enough to be worth fading in at all.
+    this.landmarkGroup.visible = false;
+
+    // Most regions are empty sky and have nothing in them at all. Reaching out
+    // six regions for the landmarks means several hundred are live at once, and
+    // an empty group is still a node the renderer walks every frame.
+    if (this.group.children.length > 0) scene.add(this.group);
   }
 
   private buildLandmark(
@@ -312,7 +454,7 @@ class Region {
         group.add(mesh);
         group.position.copy(where);
         group.rotation.set(randRange(rng, 0.4, 1.2), rng() * Math.PI, randRange(rng, -0.5, 0.5));
-        this.group.add(group);
+        this.landmarkGroup.add(group);
         // It still turns, very slowly. Whatever it was for, nobody stopped it.
         this.spinner = mesh;
         this.spinRate = randRange(rng, 0.01, 0.03);
@@ -436,7 +578,7 @@ class Region {
 
         group.position.copy(where);
         group.rotation.set(randRange(rng, 0.5, 1.1), rng() * Math.PI, 0);
-        this.group.add(group);
+        this.landmarkGroup.add(group);
 
         this.spinner = discs[0]!;
         this.spinRate = randRange(rng, 0.05, 0.11);
@@ -491,7 +633,7 @@ class Region {
         group.position.copy(centre);
         // Tipped well off both edge-on and face-on.
         group.rotation.set(randRange(rng, 0.5, 1.0), rng() * Math.PI, randRange(rng, -0.3, 0.3));
-        this.group.add(group);
+        this.landmarkGroup.add(group);
         break;
       }
 
@@ -527,7 +669,7 @@ class Region {
 
         group.position.copy(where);
         group.lookAt(where.clone().add(new THREE.Vector3(0.45, -0.62, -0.64)));
-        this.group.add(group);
+        this.landmarkGroup.add(group);
         break;
       }
 
@@ -604,10 +746,46 @@ class Region {
         }
 
         group.position.copy(where);
-        this.group.add(group);
+        this.landmarkGroup.add(group);
         this.spinner = group;
         this.spinRate = randRange(rng, 0.008, 0.02);
         break;
+      }
+    }
+  }
+
+  /**
+   * Bring the landmark up out of the dark, or leave it there.
+   *
+   * Returns nothing and costs almost nothing when there is no landmark, which
+   * is most regions.
+   */
+  fade(at: THREE.Vector3): void {
+    if (!this.landmark) return;
+
+    const distance = this.landmarkAt.distanceTo(at);
+    // 0 at fadeStart, 1 at fadeFull. Smoothstepped so it arrives and settles
+    // rather than ramping linearly and then stopping dead.
+    const t = THREE.MathUtils.clamp(
+      (FIELD.fadeStart - distance) / (FIELD.fadeStart - FIELD.fadeFull),
+      0,
+      1,
+    );
+    const eased = t * t * (3 - 2 * t);
+
+    // Not drawn at all until there is something to draw. A fully transparent
+    // object still costs a draw call and still sorts against everything else.
+    this.landmarkGroup.visible = eased > 0.002;
+    this.fadeLevel = eased;
+    if (!this.landmarkGroup.visible) return;
+
+    for (const material of this.fading) {
+      const peak = (material.userData.peak as number | undefined) ?? 1;
+      const shader = material as THREE.ShaderMaterial;
+      if (shader.isShaderMaterial && shader.uniforms.uStrength) {
+        shader.uniforms.uStrength.value = eased * peak;
+      } else {
+        material.opacity = eased * peak;
       }
     }
   }
@@ -627,8 +805,12 @@ class Region {
     if (this.halo) {
       // Breathes very slightly rather than sitting flat. Slow enough to be
       // felt rather than watched, and never a pulse anyone could count.
+      //
+      // Multiplied by the fade, because this writes opacity every frame and
+      // would otherwise hand the photon ring its full brightness the instant a
+      // region loaded, however far away it was.
       const material = this.halo.material as THREE.MeshBasicMaterial;
-      material.opacity = 0.74 + Math.sin(elapsed * 0.31) * 0.12;
+      material.opacity = (0.74 + Math.sin(elapsed * 0.31) * 0.12) * this.fadeLevel;
     }
   }
 
@@ -657,24 +839,54 @@ export class Fields {
   /** Which landmarks are currently within reach, for the readout to name. */
   readonly nearby: LandmarkKind[] = [];
 
+  /**
+   * Two radii, because the two things are seen from very different distances.
+   *
+   * A three-unit rock is invisible past a few hundred units, so debris is only
+   * built close in. A planet two hundred and eighty units across is visible
+   * from thousands, and building it only when you are already close is how one
+   * comes to simply appear in the middle distance, filling a quarter of the sky
+   * on the frame it was created. Landmarks therefore reach much further out and
+   * fade in over the approach.
+   *
+   * A region that was built for its landmark alone and later comes within the
+   * debris radius is rebuilt at full detail. That is a real cost and a rare
+   * one — it happens once per region, at a boundary you cross at sixteen units
+   * a second — and the alternative is either building every rock for a hundred
+   * and fifty regions or never having debris at all.
+   */
   update(dt: number, elapsed: number, at: THREE.Vector3): void {
     const size = FIELD.regionSize;
     const cx = Math.floor(at.x / size);
     const cy = Math.floor(at.y / size);
     const cz = Math.floor(at.z / size);
-    const radius = FIELD.regionRadius;
+
+    const near = FIELD.regionRadius;
+    const far = FIELD.landmarkRadius;
 
     const wanted = new Set<string>();
-    for (let x = cx - radius; x <= cx + radius; x++) {
+    for (let x = cx - far; x <= cx + far; x++) {
       // Vertically the sector is much thinner than it is wide: there is no
-      // reason to generate debris a kilometre above the lane nobody flies in.
+      // reason to generate anything a kilometre above the lane nobody flies in.
       for (let y = cy - 1; y <= cy + 1; y++) {
-        for (let z = cz - radius; z <= cz + radius; z++) {
+        for (let z = cz - far; z <= cz + far; z++) {
           const key = `${x},${y},${z}`;
           wanted.add(key);
-          if (!this.live.has(key)) {
-            this.live.set(key, new Region(this.scene, this.sectorSeed, x, y, z));
-          }
+
+          const close =
+            Math.abs(x - cx) <= near && Math.abs(z - cz) <= near;
+          const detail: Detail = close ? "full" : "landmark";
+
+          const existing = this.live.get(key);
+          if (existing && existing.detail === detail) continue;
+
+          // Either new, or built at the wrong detail because the pilot has
+          // come close enough for its debris to matter.
+          existing?.dispose(this.scene);
+          this.live.set(
+            key,
+            new Region(this.scene, this.sectorSeed, x, y, z, detail),
+          );
         }
       }
     }
@@ -682,6 +894,7 @@ export class Fields {
     for (const [key, region] of this.live) {
       if (wanted.has(key)) {
         region.update(dt, elapsed);
+        region.fade(at);
       } else {
         region.dispose(this.scene);
         this.live.delete(key);

@@ -8,3 +8,4 @@ Thumbs.db
 *.log
 tools/.units-check.mjs
 tools/.steering-check.mjs
+tools/.approach-check.mjs

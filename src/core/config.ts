@@ -68,7 +68,22 @@ export const CAMERA = {
    * camera instead of actually being far away.
    */
   near: 1,
-  far: 1600,
+  /*
+    Far enough to see a planet long before it is anywhere near.
+
+    This was 1600, which is comfortably beyond anything you can reach — and
+    that was the problem: a planet two hundred and eighty units across came
+    into existence at the edge of the streaming radius, already close enough to
+    fill a quarter of the sky, and simply appeared. Landmarks are now generated
+    from much further out and fade in over the approach, and this has to reach
+    far enough for that approach to have somewhere to happen.
+
+    Still kept as tight as the job allows. Depth precision is the ratio of these
+    two, and a far plane chosen generously rather than deliberately is how a
+    surface several hundred units short of it gets rounded past and clipped away
+    with no warning at all — which has already happened here once.
+  */
+  far: 3200,
   /** How far behind the unit the camera sits until anything moves it. */
   distance: 26,
   minDistance: 9,
@@ -149,8 +164,27 @@ export const PAINT = {
 export const FIELD = {
   /** Side of one region of space, in units. Debris is clustered inside these. */
   regionSize: 420,
-  /** Regions kept live in each direction around the pilot. */
+  /** Regions kept live in each direction around the pilot, with debris in them. */
   regionRadius: 2,
+  /**
+   * And how far out the landmarks alone are generated.
+   *
+   * Much further, because they are large. A planet is visible from many times
+   * the distance a three-unit rock is, so generating both at the same radius
+   * means either building thousands of invisible rocks or having planets
+   * switch on in the middle distance. The rocks stay near and the landmarks
+   * reach out.
+   */
+  landmarkRadius: 6,
+  /**
+   * Where a landmark starts to appear, and where it is fully there.
+   *
+   * It is invisible beyond the first and solid by the second, so what happens
+   * in between is an approach rather than an arrival. At cruise that is about
+   * a minute of it slowly gathering out of the dark.
+   */
+  fadeStart: 2400,
+  fadeFull: 1500,
   /** Roughly how many clusters a region holds. Most regions are empty sky. */
   clustersPerRegion: 1.7,
   rocksPerCluster: [6, 22] as [number, number],

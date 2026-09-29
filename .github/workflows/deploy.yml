@@ -46,6 +46,9 @@ jobs:
       - name: Check the controls and the camera
         run: npm run verify:steering
 
+      - name: Check nothing large arrives without warning
+        run: npm run verify:approach
+
       - name: Configure Pages
         id: pages
         uses: actions/configure-pages@v5

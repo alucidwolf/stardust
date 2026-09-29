@@ -121,6 +121,52 @@ identically whether you reach it in ten seconds or ten minutes, and from any
 direction. Vertically the sector is much thinner than it is wide, because there
 is no reason to generate debris a kilometre above the lane nobody flies in.
 
+### Coming into view
+
+Debris and landmarks stream at **two different radii**, because they are seen
+from two very different distances. A three-unit rock is invisible past a few
+hundred units. A planet two hundred and eighty units across is visible from
+thousands — and building it only when you were already close is how one came to
+simply *appear* in the middle distance, already filling a quarter of the sky, on
+the single frame its region was created.
+
+So landmarks are generated six regions out, are guaranteed to exist by 2,604
+units, and stay invisible until 2,400 — then fade up over the approach, which
+at cruise takes the better part of a minute. What is created and what appears are
+no longer the same moment.
+
+Three things had to be got right for that to hold, and each was wrong first.
+
+**The fade is a multiplier, not a value.** These materials do not all end at
+full strength — a planetary ring settles at a fifth, a comet tail at a fifth,
+the crystals vary per shard — so fading them by assigning an opacity quietly
+promoted every one of them to solid on arrival. And the accretion disc is a
+shader, whose `opacity` is a property nothing reads; it fades on the uniform
+its own shader multiplies by.
+
+**The fade is measured to where the landmark is**, which is not the anchor its
+region picked. A planet is slung four to six hundred units above or below the
+lane so that it is scenery you pass rather than an obstacle. Timing the fade
+against the anchor faded planets in against a place they were not, so one could
+be solid at 1,800 units when it was supposed to be halfway through appearing —
+the original complaint, in miniature, surviving its own fix. It is now measured
+once, from the bounds of whatever the landmark turned out to be built from.
+
+**A distant region still takes every random draw a near one would.** Only the
+rock geometry is skipped. The sector depends on a region generating identically
+however you arrive at it, and skipping the draws would leave the generator at a
+different point in its sequence by the time it reached the landmark — so the
+same region would hold a different landmark, somewhere else, depending on
+whether you had happened to pass nearby before.
+
+`verify:approach` flies twelve simulated minutes and walks the real scene graph
+rather than reading the fade constants back, because the original bug was that
+nothing consulted them. The measurement that matters is the **brightness step**:
+a pop is a material going from nothing to everything between two frames, and
+distance thresholds cannot express that — a landmark is not a point, and a gas
+giant's outer ring sits seven hundred units from the giant's own centre. The
+worst step over the flight is 1.3% per half second.
+
 ## Flying itself
 
 Left alone, a unit explores. Slowly, randomly, and without ever hurrying: over
@@ -226,11 +272,12 @@ npm run dev      # http://127.0.0.1:5174
 | `npm run typecheck` | Types only |
 | `npm run verify:starfield` | Headless check that the sky is evenly covered and stays with you |
 | `npm run verify:units` | Headless check that every plate is closed and the paint follows the ratio |
-| `npm run verify:steering` | Headless check that each control goes the way it looks, and the autopilot never circles |
+| `npm run verify:steering` | Headless check that each control goes the way it looks, and the autopilot explores without circling |
+| `npm run verify:approach` | Headless check that nothing large ever simply appears |
 
 The approach comes from Currents: a headless check that steps the real code and
 asks a question about the result, rather than a screenshot somebody has to
-squint at. All three run in the deploy workflow before anything is published,
+squint at. All four run in the deploy workflow before anything is published,
 because a build log cannot tell you that the sky has a bald patch at the poles,
 that a unit is full of holes, or that the controls send you the opposite way
 from the one they name.
@@ -238,7 +285,7 @@ from the one they name.
 ## Deploying
 
 Pushing `main` builds and publishes to GitHub Pages, via
-`.github/workflows/deploy.yml`. The three checks run first and a failure stops
+`.github/workflows/deploy.yml`. The four checks run first and a failure stops
 the deploy. `BASE_PATH` comes from GitHub rather than being written down, so it
 keeps working if the repository is renamed or forked.
 
