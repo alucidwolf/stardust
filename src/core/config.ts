@@ -10,13 +10,28 @@ export const SECTOR = {
   skyRadius: 900,
   /** Dense background stars. */
   farStars: 2600,
-  /** Sparse foreground glints that parallax past. */
-  nearStars: 150,
+  /**
+   * Sparse foreground glints that parallax past.
+   *
+   * A third of what this was, spread through half again the volume. The number
+   * that matters is not how many there are but how often one crosses the
+   * screen, and at a hundred and fifty in a shell this size that was several a
+   * second — which reads as flying through weather rather than as drifting in
+   * deep space. They are here to prove the far field is far away, and a handful
+   * does that as well as a swarm.
+   */
+  nearStars: 55,
   /** How far the near glints spread around the camera. */
-  nearRadius: 220,
-  /** Drifting stardust in the volume immediately around you. */
-  motes: 900,
-  moteRadius: 46,
+  nearRadius: 340,
+  /**
+   * Drifting stardust in the volume immediately around you.
+   *
+   * Thinned and spread wider for the same reason, but not nearly as far: this
+   * is the app's namesake and in quiet moments it should still be the
+   * brightest thing on screen. The aim is dust caught in the light, not snow.
+   */
+  motes: 420,
+  moteRadius: 64,
   /**
    * How strongly the nebula shows.
    *
@@ -188,8 +203,21 @@ export const FIELD = {
   /** Roughly how many clusters a region holds. Most regions are empty sky. */
   clustersPerRegion: 1.7,
   rocksPerCluster: [6, 22] as [number, number],
-  /** Roughly one region in this many carries an ordinary landmark. */
-  landmarkChance: 1 / 9,
+  /**
+   * Roughly one region in this many carries an ordinary landmark.
+   *
+   * Much rarer than it was, and the reason is that the streaming radius grew.
+   * One in nine was a fair rate when a couple of dozen regions were live; once
+   * landmarks reached six regions out there were five hundred, and one in nine
+   * of those put something like seventy of them around you at once, a dozen of
+   * them planets. That is not deep space, it is a solar system.
+   *
+   * The feeling being aimed at is a long quiet drift that occasionally comes
+   * across something worth looking at — so the density is set by how many
+   * should be in view at once, which is a few, and not by how often a region
+   * should be interesting.
+   */
+  landmarkChance: 1 / 190,
   /**
    * And one in this many carries something worth remembering.
    *
@@ -197,7 +225,7 @@ export const FIELD = {
    * which any of them is impressive. A ringed giant you meet every other
    * region is scenery; one you meet twice an hour is an event.
    */
-  wonderChance: 1 / 34,
+  wonderChance: 1 / 380,
 } as const;
 
 /**

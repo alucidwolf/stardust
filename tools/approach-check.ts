@@ -84,6 +84,23 @@ let landmarksMet = 0;
 let worstStep = 0;
 let previous = new Map<string, number>();
 
+/**
+ * How crowded the sky gets.
+ *
+ * The complaint this answers is that too much was in view at once — a dozen
+ * planets around you reads as a solar system, not as deep space. Density is
+ * therefore set by how many should be visible at a time, which is a few, and
+ * the check measures exactly that rather than the chance per region that was
+ * supposed to produce it.
+ */
+let mostAtOnce = 0;
+let mostPlanetsAtOnce = 0;
+let totalSeen = 0;
+let samples = 0;
+
+/** The big round ones, which are what dominates a view when there are many. */
+const BIG = new Set(["planet", "giant"]);
+
 const seenRegions = new Set<string>();
 
 // Twelve minutes of flying in a straight line, which crosses a good many
@@ -154,6 +171,48 @@ for (let i = 0; i < (minutes * 60) / DT; i++) {
     }
   });
 
+  {
+    /*
+      Counted by how far up its fade each one has come, not by whether it is
+      switched on.
+
+      A landmark two thousand four hundred units away at one percent is
+      technically in the scene and is not in any sense in view. Counting those
+      says the sky is crowded when what is actually out there is one planet and
+      six rumours of planets, which would have had the density tuned against a
+      number nobody can see.
+    */
+    let showing = 0;
+    let planets = 0;
+
+    scene.traverse((node) => {
+      if (node.name !== "landmark" || !node.visible) return;
+      for (let p = node.parent; p; p = p.parent) if (!p.visible) return;
+
+      // How far up the fade this landmark has come, from any part of it.
+      let shown = 0;
+      node.traverse((child) => {
+        const mesh = child as THREE.Mesh;
+        if (!mesh.isMesh) return;
+        const mats = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
+        for (const m of mats) {
+          if (!m) continue;
+          const value = level(m);
+          if (value !== null) shown = Math.max(shown, value);
+        }
+      });
+
+      if (shown < 0.5) return;
+      showing++;
+      if (BIG.has(node.userData.kind as string)) planets++;
+    });
+
+    mostAtOnce = Math.max(mostAtOnce, showing);
+    mostPlanetsAtOnce = Math.max(mostPlanetsAtOnce, planets);
+    totalSeen += showing;
+    samples++;
+  }
+
   for (const [id, shown] of current) {
     const before = previous.get(id);
     if (before === undefined) continue;
@@ -178,6 +237,22 @@ check(
 check(bestLevel > 0.9, `landmarks do finish arriving (best ${(bestLevel * 100).toFixed(0)}%)`);
 check(landmarksMet > 1, `the flight met something to measure (${landmarksMet} kinds)`);
 
+const averageInView = totalSeen / Math.max(samples, 1);
+
+check(mostAtOnce <= 6, `the sky never gets crowded (at most ${mostAtOnce} clearly in view)`);
+check(
+  mostPlanetsAtOnce <= 2,
+  `and never turns into a solar system (at most ${mostPlanetsAtOnce} planets clearly in view)`,
+);
+// The other way round is just as wrong: an empty sector is not restful, it is
+// nothing. There has to be something out there to come across.
+check(
+  averageInView > 0.8,
+  `but there is still something to find (${averageInView.toFixed(1)} clearly in view on average)`,
+);
+
+console.log(`  clearly in view            ${averageInView.toFixed(1)} average, ${mostAtOnce} at most`);
+console.log(`  planets clearly in view    ${mostPlanetsAtOnce} at most`);
 console.log(`  brightest beyond the fade  ${(brightestFarAway * 100).toFixed(1)}%`);
 console.log(`  worst brightness step      ${(worstStep * 100).toFixed(1)}% per half second`);
 console.log(`  reaches                    ${(bestLevel * 100).toFixed(0)}% up close`);

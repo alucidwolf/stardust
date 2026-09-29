@@ -164,6 +164,67 @@ function accretionMaterial(hotAngle: number, strength: number): THREE.ShaderMate
 }
 
 /**
+ * A planetary ring that is solid through the middle and soft at both rims.
+ *
+ * The first version was a flat annulus of one flat opacity, which gave it two
+ * problems at once: it was too faint to read as ice and rock, and it ended at
+ * a hard line on both edges — a washer laid over the sky rather than a band of
+ * material thinning out into nothing.
+ *
+ * Brightness is now a curve across the band. It rises out of the inner edge,
+ * holds through the middle, and falls away at the outer, so neither rim has a
+ * boundary you could trace. There is a gentle division a little outside the
+ * centre, because a ring system that is one even band is a disc, and what makes
+ * one read as *rings* is that there is more than one of them.
+ *
+ * It fades with the rest of its landmark on `uStrength`, which is the uniform
+ * the approach fade knows to look for.
+ */
+function planetRingMaterial(colour: THREE.Color, strength: number): THREE.ShaderMaterial {
+  return new THREE.ShaderMaterial({
+    vertexShader: /* glsl */ `
+      varying float vRadius;
+      void main() {
+        vRadius = length( position.xy );
+        gl_Position = projectionMatrix * modelViewMatrix * vec4( position, 1.0 );
+      }
+    `,
+    fragmentShader: /* glsl */ `
+      uniform vec3 uColor;
+      uniform float uInner;
+      uniform float uOuter;
+      uniform float uStrength;
+      varying float vRadius;
+
+      void main() {
+        float t = clamp( ( vRadius - uInner ) / max( uOuter - uInner, 1e-4 ), 0.0, 1.0 );
+
+        // Soft at both rims, full through the middle. Wide enough that there
+        // is no edge to find, on either side.
+        float body = smoothstep( 0.0, 0.34, t ) * ( 1.0 - smoothstep( 0.62, 1.0, t ) );
+
+        // One division, a little outside centre. Narrow, and never all the way
+        // to nothing — a hard gap would put back the edge this is removing.
+        float gap = 1.0 - 0.45 * exp( -pow( ( t - 0.56 ) * 13.0, 2.0 ) );
+
+        float alpha = body * gap * uStrength;
+        if ( alpha < 0.003 ) discard;
+        gl_FragColor = vec4( uColor, alpha );
+      }
+    `,
+    uniforms: {
+      uColor: { value: colour },
+      uInner: { value: 0 },
+      uOuter: { value: 1 },
+      uStrength: { value: strength },
+    },
+    transparent: true,
+    side: THREE.DoubleSide,
+    depthWrite: false,
+  });
+}
+
+/**
  * Everything random about one boulder, drawn but not yet built.
  *
  * Split from the geometry on purpose. A region generated for its landmark
@@ -175,6 +236,8 @@ function accretionMaterial(hotAngle: number, strength: number): THREE.ShaderMate
  * than the geometry it was avoiding.
  */
 interface RockSpec {
+  /** Which solid it is cut from. */
+  shape: number;
   detail: number;
   scale: [number, number, number];
   turn: [number, number, number];
@@ -182,8 +245,21 @@ interface RockSpec {
 
 function rockSpec(rng: Rng): RockSpec {
   return {
-    detail: rng() < 0.25 ? 1 : 0,
-    scale: [randRange(rng, 0.6, 1.3), randRange(rng, 0.5, 1.2), randRange(rng, 0.6, 1.3)],
+    shape: Math.floor(rng() * 3),
+    // Most rocks now carry the extra subdivision rather than a quarter of
+    // them, so the common case is a gem with eighty faces instead of twenty.
+    detail: rng() < 0.65 ? 1 : 0,
+    /*
+      Squashed far less than they were.
+
+      The old range went down to half on one axis and up to one and a third on
+      another, and a twenty-face solid flattened that hard stops reading as a
+      lump of rock and starts reading as a slab — which is where "blocky" comes
+      from. It is not the face count that makes a shape look square, it is
+      having one dimension obviously shorter than the others. Kept near enough
+      to round that the facets are what you notice.
+    */
+    scale: [randRange(rng, 0.78, 1.22), randRange(rng, 0.74, 1.18), randRange(rng, 0.78, 1.22)],
     turn: [rng() * Math.PI, rng() * Math.PI, rng() * Math.PI],
   };
 }
@@ -196,7 +272,15 @@ function rockSpec(rng: Rng): RockSpec {
  * enough to count, which is the whole look.
  */
 function rock(spec: RockSpec, radius: number): THREE.BufferGeometry {
-  const geometry = new THREE.IcosahedronGeometry(radius, spec.detail);
+  // Three different solids, so a field is not one shape at twenty rotations.
+  // Dodecahedra and octahedra cut differently from icosahedra and the mix
+  // reads as rock rather than as a repeated prop.
+  const geometry =
+    spec.shape === 0
+      ? new THREE.IcosahedronGeometry(radius, spec.detail)
+      : spec.shape === 1
+        ? new THREE.DodecahedronGeometry(radius, spec.detail)
+        : new THREE.OctahedronGeometry(radius, spec.detail + 1);
   geometry.scale(spec.scale[0], spec.scale[1], spec.scale[2]);
   geometry.rotateX(spec.turn[0]);
   geometry.rotateY(spec.turn[1]);
@@ -387,7 +471,14 @@ class Region {
       }
     });
 
-    if (this.landmarkGroup.children.length > 0) this.group.add(this.landmarkGroup);
+    if (this.landmarkGroup.children.length > 0) {
+      // Named and tagged so the scene graph says what it holds — useful in a
+      // console, and the only practical way to count what is actually on
+      // screen from outside.
+      this.landmarkGroup.name = "landmark";
+      this.landmarkGroup.userData.kind = this.landmark;
+      this.group.add(this.landmarkGroup);
+    }
 
     /*
       Where the landmark actually is, measured rather than assumed.
@@ -445,7 +536,10 @@ class Region {
         // it reads as plated rather than smooth, tipped over at an angle no
         // working station would hold.
         const group = new THREE.Group();
-        const geometry = new THREE.TorusGeometry(randRange(rng, 44, 78), 5.5, 5, 14);
+        // Was a five-sided tube in fourteen steps, which from any distance read
+        // as a heptagon someone had bent. Enough segments now that it is a ring
+        // made of panels rather than a polygon pretending to be a ring.
+        const geometry = new THREE.TorusGeometry(randRange(rng, 44, 78), 5.5, 8, 30);
         const mesh = new THREE.Mesh(
           geometry,
           new THREE.MeshLambertMaterial({ color: 0x8a93a6, flatShading: true }),
@@ -612,19 +706,21 @@ class Region {
         body.frustumCulled = false;
         group.add(body);
 
-        // Three bands rather than one sheet, with gaps between them, because a
-        // single annulus is exactly the flat donut.
-        for (let i = 0; i < 3; i++) {
-          const inner = radius * (1.4 + i * 0.42);
+        // Two broad bands rather than three narrow ones, each soft at both
+        // rims and solid enough through the middle to read as material.
+        for (let i = 0; i < 2; i++) {
+          const inner = radius * (1.38 + i * 0.66);
+          const outer = inner + radius * (0.46 + rng() * 0.22);
+          const material = planetRingMaterial(
+            new THREE.Color(0xc9b489).lerp(bodyColour, rng() * 0.5),
+            0.52 + rng() * 0.16,
+          );
+          material.uniforms.uInner!.value = inner;
+          material.uniforms.uOuter!.value = outer;
+
           const ring = new THREE.Mesh(
-            new THREE.RingGeometry(inner, inner + radius * (0.16 + rng() * 0.2), 96, 1),
-            new THREE.MeshBasicMaterial({
-              color: new THREE.Color(0xc9b489).lerp(bodyColour, rng() * 0.5),
-              transparent: true,
-              opacity: 0.16 + rng() * 0.16,
-              side: THREE.DoubleSide,
-              depthWrite: false,
-            }),
+            new THREE.RingGeometry(inner, outer, 128, 1),
+            material,
           );
           ring.frustumCulled = false;
           group.add(ring);

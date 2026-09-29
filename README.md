@@ -97,8 +97,9 @@ yard.
 
 - a **black hole** — the only unlit thing out here, which works precisely
   because the sky it sits against never is;
-- a **ringed gas giant**, tipped well off both edge-on and face-on, with three
-  banded rings rather than one sheet;
+- a **ringed gas giant**, tipped well off both edge-on and face-on, its rings
+  solid through the middle and soft at both rims — a band of material thinning
+  out into nothing rather than a washer with an edge you could trace;
 - a **comet**, its tail pointing away from the sector's star rather than
   backward along its path;
 - the **hulk** of a capital ship, broken into pieces that drifted apart and
@@ -111,9 +112,33 @@ yard.
 Debris comes in **clusters with empty space between them**, not sprinkled
 evenly. That rule is inherited: an endlessly generated world has a
 characteristic failure where everywhere is equally interesting, which means
-nowhere is. Rocks are icosahedra squashed and turned at random, warm rust mixed
-with cool grey per rock rather than per cluster, and most are small — the
-occasional big one is what gives a cluster a scale to read the rest against.
+nowhere is. Rocks are cut from three different solids — icosahedra,
+dodecahedra, octahedra — warm rust mixed with cool grey per rock rather than
+per cluster, and most are small, the occasional big one giving a cluster a
+scale to read the rest against.
+
+They are barely squashed. The first version stretched them from half to a third
+again on each axis, and that is where "blocky" came from: it is not the face
+count that makes a shape look square, it is having one dimension obviously
+shorter than the others. A twenty-face solid flattened that hard stops reading
+as rock and starts reading as a slab. Kept near enough to round, the facets are
+what you notice.
+
+**How much is out there is set by how much should be in view**, not by how
+often a region should be interesting. One region in nine was a fair rate when a
+couple of dozen were live; once landmarks streamed six regions out there were
+five hundred of them, which put around seventy landmarks and a dozen planets
+about you at once. That is a solar system, not deep space. At one in a hundred
+and ninety there are **two things clearly in view on average and never more
+than one planet**, while a twelve-minute flight still meets six different kinds
+of thing.
+
+The foreground stars went the same way, and for the same reason: a hundred and
+fifty glints in a small shell crossed the screen several a second, which reads
+as flying through weather. A third as many, spread through half again the
+volume, still proves the far field is far away. The stardust was thinned less —
+it is the app's namesake and should still be the brightest thing in a quiet
+moment — but it is meant to be dust caught in the light, not snow.
 
 Space is built in **regions** the way Currents built the seabed in chunks — a
 cube generated from a hash of its own coordinates, so a region rebuilds
@@ -273,7 +298,7 @@ npm run dev      # http://127.0.0.1:5174
 | `npm run verify:starfield` | Headless check that the sky is evenly covered and stays with you |
 | `npm run verify:units` | Headless check that every plate is closed and the paint follows the ratio |
 | `npm run verify:steering` | Headless check that each control goes the way it looks, and the autopilot explores without circling |
-| `npm run verify:approach` | Headless check that nothing large ever simply appears |
+| `npm run verify:approach` | Headless check that nothing large ever simply appears, and that the sky never gets crowded |
 
 The approach comes from Currents: a headless check that steps the real code and
 asks a question about the result, rather than a screenshot somebody has to
