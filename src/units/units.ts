@@ -77,6 +77,17 @@ interface EngineSpec {
 }
 
 /**
+ * How many engine bells actually cast light.
+ *
+ * Fixed across the fleet, and deliberately not "one per engine". three.js
+ * compiles a material against the number of lights in the scene, so a unit that
+ * brought a different count with it would recompile every material in the
+ * sector on the frame you swapped to it. Two is what the narrowest unit has, so
+ * two is what every unit lights with, whatever it is carrying.
+ */
+const LIT_ENGINES = 2;
+
+/**
  * Wrap a plate list and some engines into a rig.
  *
  * `animate` is where a unit's own moving parts go — a binder that opens, a
@@ -102,9 +113,66 @@ function rig(
     glows.push(glow);
   }
 
+  /*
+    The engines light the hull, because the camera is looking at the dark side.
+
+    The key is the sector's star and it is somewhere out in the sky; the camera
+    sits behind the unit. Measured against a surface pointed straight at the
+    camera the star came in at minus a third — it is *behind* everything you can
+    see — leaving the back of the unit lit by the nebula fill and a little
+    ambient and nothing else. Half the hull was sitting at a sixth of its own
+    paint value, which is why it read as one dark shape rather than as plates.
+
+    These are not a cheat to brighten it. The bells are already the brightest
+    thing on screen from this angle, and a thruster that glows without throwing
+    any light was the actual mistake. They are short-range and they rise and
+    fall with the same breath the glow does, so what they mostly do is pick out
+    the vents, the rear armour and the gaps between plates — the detail the
+    design puts back there precisely because this is the side you see.
+  */
+  const lights: THREE.PointLight[] = [];
+  for (let i = 0; i < LIT_ENGINES; i++) {
+    const engine = engines[Math.min(i, engines.length - 1)]!;
+    /*
+      Reaches the unit and stops, and falls off gently along the way.
+
+      Square falloff put the engine housings a few tenths from the source and
+      blew eight per cent of the hull past white while the far end of the unit
+      stayed dark — brighter overall, but no more readable, and clipped. A
+      linear falloff spreads the same light along a five-unit hull: swept
+      against the square version it held the median at three quarters of the
+      way up while cutting the blown-out fraction to well under one per cent.
+
+      Set well back behind the bell, down the plume, rather than at the nozzle.
+      At one unit the gold rims sat close enough to the source to pin a channel
+      across nearly seven per cent of the hull — flat yellow squares with their
+      own bevels burned off. At one point eight that falls to a hundredth of a
+      per cent for a five per cent loss of median brightness, which is no trade
+      at all. Short-ranged either way, so it lights the unit rather than giving
+      the sector a headlight.
+    */
+    const light = new THREE.PointLight(PALETTE.thrust, 0, 14, 1);
+    light.position.set(engine.position[0], engine.position[1], engine.position[2] - 1.8);
+    root.add(light);
+    lights.push(light);
+  }
+
   const thrust = new THREE.Color(PALETTE.thrust);
   const signal = new THREE.Color(PALETTE.signal);
   const tint = new THREE.Color();
+  /**
+   * The colour the bells actually *cast*, as opposed to the colour they look.
+   *
+   * A plume is blue at its edges and white at its core, and it is the core that
+   * does the lighting. Lit with the raw thrust blue the hull came back at a
+   * blue-over-red ratio of 1.86 when the white paint's own ratio is 1.06 — so
+   * the tricolour stopped reading as white, navy and red and started reading as
+   * three blues. Pulled most of the way to the star's own white it lands at
+   * about 1.16: still cool, still obviously the engines doing it, and the paint
+   * is still the paint.
+   */
+  const cast = new THREE.Color();
+  const core = new THREE.Color(PALETTE.starWarm);
 
   return {
     root,
@@ -125,6 +193,14 @@ function rig(
         // The bell stretches with thrust rather than brightening alone, so the
         // change reads at a glance from behind.
         glow.scale.z = 0.75 + level * 0.9;
+      }
+
+      cast.copy(tint).lerp(core, 0.6);
+      for (const light of lights) {
+        light.color.copy(cast);
+        // Floored well above nothing: the point of these is that the hull is
+        // readable, and a unit coasting must not go back to being a silhouette.
+        light.intensity = 2.6 + THREE.MathUtils.clamp(level, 0, 1) * 3.4;
       }
 
       animate?.(elapsed, rate, effort, root);
@@ -183,6 +259,40 @@ const wayfarer: UnitDef = {
       // Thruster rims, where the glow comes out.
       { size: [0.3, 0.12, 0.12], position: [0.62, -1.05, -0.62], colour: PAINT.gold },
       { size: [0.3, 0.12, 0.12], position: [-0.62, -1.05, -0.62], colour: PAINT.gold },
+
+      // -- detail -----------------------------------------------------------
+      // All of it on the back and the top, because that is where the camera
+      // is. Detail on the chest would be modelling for a view nobody has.
+
+      // Backpack, filling the space between the binder roots, with louvres cut
+      // into the face that looks straight down the camera.
+      { size: [0.55, 0.6, 0.22], position: [0, 0.85, -0.95], colour: PAINT.navy },
+      ...[1.15, 0.95, 0.75].map((y): PlateSpec => ({
+        size: [0.4, 0.045, 0.06],
+        position: [0, y, -1.19],
+        colour: PAINT.gold,
+      })),
+      // Shoulder verniers: the attitude thrusters, on top where they show.
+      { size: [0.22, 0.16, 0.3], position: [1.25, 1.36, -0.1], colour: PAINT.navy },
+      { size: [0.22, 0.16, 0.3], position: [-1.25, 1.36, -0.1], colour: PAINT.navy },
+      { size: [0.16, 0.09, 0.05], position: [1.25, 1.4, -0.46], colour: PAINT.gold },
+      { size: [0.16, 0.09, 0.05], position: [-1.25, 1.4, -0.46], colour: PAINT.gold },
+      // Seams across the backs of the chest plates. A plate this size reads as
+      // one slab until something crosses it.
+      { size: [0.5, 0.06, 0.04], position: [1.25, 0.55, -0.69], colour: PAINT.navy },
+      { size: [0.5, 0.06, 0.04], position: [-1.25, 0.55, -0.69], colour: PAINT.navy },
+      // Calf plates and heels, which is most of what you see of the legs from
+      // behind.
+      { size: [0.3, 0.45, 0.06], position: [0.62, -1.9, -0.58], colour: PAINT.navy },
+      { size: [0.3, 0.45, 0.06], position: [-0.62, -1.9, -0.58], colour: PAINT.navy },
+      { size: [0.18, 0.18, 0.12], position: [0.62, -2.9, -0.64], colour: PAINT.navy },
+      { size: [0.18, 0.18, 0.12], position: [-0.62, -2.9, -0.64], colour: PAINT.navy },
+      // Hip skirts, canted out. A straight waist and a straight leg give a
+      // straight silhouette edge, and the cant is what breaks it.
+      { size: [0.1, 0.5, 0.45], position: [1.02, -1.3, 0], rotation: [0, 0, 0.3], colour: PAINT.white },
+      { size: [0.1, 0.5, 0.45], position: [-1.02, -1.3, 0], rotation: [0, 0, -0.3], colour: PAINT.white },
+      // One antenna, on one side only. A pair would read as ears.
+      { size: [0.045, 0.55, 0.045], position: [-1.15, 2.05, -0.85], colour: PAINT.white },
     ];
 
     const unit = rig(
@@ -274,6 +384,56 @@ const bastion: UnitDef = {
       // Back vents, gold, facing the camera.
       { size: [0.5, 0.22, 0.2], position: [0.7, 1.0, -1.2], colour: PAINT.gold },
       { size: [0.5, 0.22, 0.2], position: [-0.7, 1.0, -1.2], colour: PAINT.gold },
+
+      // -- detail -------------------------------------------------------------
+
+      /*
+        Bracing across the shield.
+
+        The shield is the largest single surface in the fleet by a long way, and
+        one vertical rib was not enough to stop it reading as a blank slab —
+        which at distance made the unit's whole silhouette idea look like a
+        mistake rather than a choice. Two bands crossing the rib turn it into
+        something built, and the red one near the top is the only place on this
+        unit where red lands anywhere near the eye.
+      */
+      { size: [0.09, 0.16, 1.9], position: [-4.38, 1.9, 0], colour: PAINT.navy },
+      { size: [0.09, 0.16, 1.9], position: [-4.38, -2.3, 0], colour: PAINT.navy },
+      { size: [0.09, 0.2, 1.9], position: [-4.38, 2.62, 0], colour: PAINT.red },
+      // Bolt blocks at the shield's corners, where a slab this size would be
+      // carrying its load.
+      ...[
+        [2.9, 2.05], [2.9, -2.05], [-3.5, 2.05], [-3.5, -2.05],
+      ].map(([y, z]): PlateSpec => ({
+        size: [0.1, 0.16, 0.16],
+        position: [-4.36, y!, z!],
+        colour: PAINT.navy,
+      })),
+
+      // Shoulder louvres, on top of the blocks where they catch the key.
+      ...[-0.55, -0.2].flatMap((z): PlateSpec[] => [
+        { size: [0.6, 0.05, 0.1], position: [2.5, 2.09, z], colour: PAINT.gold },
+        { size: [0.6, 0.05, 0.1], position: [-2.5, 2.09, z], colour: PAINT.gold },
+      ]),
+
+      // Radiator panels either side of the spine thruster, gold-edged along
+      // the bottom. This is the face the camera spends all its time looking at.
+      { size: [0.42, 0.9, 0.12], position: [1.0, 0.0, -1.3], colour: PAINT.navy },
+      { size: [0.42, 0.9, 0.12], position: [-1.0, 0.0, -1.3], colour: PAINT.navy },
+      { size: [0.42, 0.05, 0.06], position: [1.0, -0.93, -1.36], colour: PAINT.gold },
+      { size: [0.42, 0.05, 0.06], position: [-1.0, -0.93, -1.36], colour: PAINT.gold },
+
+      // Hip skirts, canted out, and calf plates. Between them they break the
+      // straight run from waist to foot that made the legs read as two posts.
+      { size: [0.12, 0.62, 0.7], position: [1.45, -1.9, 0], rotation: [0, 0, 0.26], colour: PAINT.white },
+      { size: [0.12, 0.62, 0.7], position: [-1.45, -1.9, 0], rotation: [0, 0, -0.26], colour: PAINT.white },
+      { size: [0.42, 0.5, 0.08], position: [0.85, -2.6, -0.88], colour: PAINT.navy },
+      { size: [0.42, 0.5, 0.08], position: [-0.85, -2.6, -0.88], colour: PAINT.navy },
+
+      // A forearm band on the free arm, and a crest on the head — one small
+      // vertical on a unit that is otherwise all horizontals.
+      { size: [0.44, 0.12, 0.52], position: [2.9, -0.9, 0], colour: PAINT.navy },
+      { size: [0.06, 0.22, 0.3], position: [0, 2.78, 0.1], colour: PAINT.gold },
     ];
 
     return rig(plates, [
@@ -322,6 +482,39 @@ const swordtail: UnitDef = {
       { size: [0.38, 0.38, 0.8], position: [-0.72, 0, -4.6], colour: PAINT.navy },
       { size: [0.3, 0.3, 0.16], position: [0.72, 0, -5.45], colour: PAINT.gold, bevel: 0.4 },
       { size: [0.3, 0.3, 0.16], position: [-0.72, 0, -5.45], colour: PAINT.gold, bevel: 0.4 },
+
+      // -- detail -------------------------------------------------------------
+
+      // Spine strips either side of the fin. A three-unit boom with nothing
+      // running along it has no length to read; two lines give it one.
+      { size: [0.07, 0.05, 2.6], position: [0.2, 0.45, -2.6], colour: PAINT.navy },
+      { size: [0.07, 0.05, 2.6], position: [-0.2, 0.45, -2.6], colour: PAINT.navy },
+      // A white cap along the top of the fin, so the tallest edge on the unit
+      // is not the same red as the block under it.
+      { size: [0.13, 0.1, 1.6], position: [0, 1.56, -3.6], colour: PAINT.white },
+
+      // Canards at the cockpit. The wings are all the way aft, which left the
+      // front third a bare tube — and on the quickest unit in the fleet the
+      // nose is what you watch.
+      { size: [0.55, 0.07, 0.3], position: [1.0, 0.05, 2.1], rotation: [0, 0, -0.12], colour: PAINT.white },
+      { size: [0.55, 0.07, 0.3], position: [-1.0, 0.05, 2.1], rotation: [0, 0, 0.12], colour: PAINT.white },
+
+      // Wing-root intakes, with a gold lip at the back of each.
+      { size: [0.26, 0.2, 0.5], position: [0.85, 0.1, -0.5], colour: PAINT.navy },
+      { size: [0.26, 0.2, 0.5], position: [-0.85, 0.1, -0.5], colour: PAINT.navy },
+      { size: [0.2, 0.1, 0.06], position: [0.85, 0.12, -1.02], colour: PAINT.gold },
+      { size: [0.2, 0.1, 0.06], position: [-0.85, 0.12, -1.02], colour: PAINT.gold },
+
+      // Fences out on the wings, matching each wing's own cant so they stand
+      // off it square rather than leaning.
+      { size: [0.05, 0.22, 0.4], position: [2.0, 0.12, -0.72], rotation: [0, -0.22, -0.1], colour: PAINT.white },
+      { size: [0.05, 0.22, 0.4], position: [-2.0, 0.12, -0.72], rotation: [0, 0.22, 0.1], colour: PAINT.white },
+
+      // Louvres on top of the engine housings.
+      ...[-4.35, -4.05].flatMap((z): PlateSpec[] => [
+        { size: [0.3, 0.04, 0.1], position: [0.72, 0.42, z], colour: PAINT.gold },
+        { size: [0.3, 0.04, 0.1], position: [-0.72, 0.42, z], colour: PAINT.gold },
+      ]),
     ];
 
     return rig(
@@ -388,6 +581,58 @@ const oldTuesday: UnitDef = {
       { size: [0.45, 0.45, 0.2], position: [-0.85, 0.6, -5.5], colour: PAINT.gold, bevel: 0.35 },
       // A patch plate, off-square, over the port side of the engine block.
       { size: [0.06, 0.5, 0.6], position: [-1.55, 0.7, -4.5], rotation: [0, 0, 0.18], colour: PAINT.red, bevel: 0.1 },
+
+      // -- detail -------------------------------------------------------------
+
+      /*
+        Cross-bracing in the frame, which is what an open cage is mostly made of.
+
+        Four ribs and eight uprights gave a row of rectangles, and a rectangle
+        carries no load — the frame read as a drawing of a frame. A diagonal in
+        each bay, alternating direction down the length, is the single change
+        that makes it look like it could hold a container up.
+
+        The angles are worked out rather than chosen: each strut has to reach
+        corner to corner of its own bay, and the bays are unevenly spaced, so no
+        two are the same. Half-length and tilt are the diagonal of that bay.
+      */
+      ...([
+        [0.7, 1.5, 0.927],
+        [-1.05, 1.47, -0.954],
+        [-2.65, 1.415, 1.012],
+      ] as const).flatMap(([z, half, tilt]): PlateSpec[] => [
+        { size: [0.08, 0.07, half], position: [2.0, 0.1, z], rotation: [tilt, 0, 0], colour: PAINT.white },
+        { size: [0.08, 0.07, half], position: [-2.0, 0.1, z], rotation: [tilt, 0, 0], colour: PAINT.white },
+      ]),
+
+      // Straps over the containers. Cargo nobody has tied down is cargo that
+      // would not still be aboard.
+      ...([
+        [1.0, 1.5], [1.0, -0.1], [-1.0, 1.5], [-1.0, -0.1],
+        [1.0, -1.6], [1.0, -3.2], [-1.0, -1.6], [-1.0, -3.2],
+      ] as const).map(([x, z]): PlateSpec => ({
+        size: [0.84, 0.74, 0.06],
+        position: [x, -0.4, z],
+        colour: PAINT.white,
+      })),
+
+      // Radiator fins along the top of the engine block, and a pair of stacks
+      // in front of them.
+      ...[-4.2, -4.6, -5.0].map((z): PlateSpec => ({
+        size: [1.3, 0.06, 0.1],
+        position: [0, 1.54, z],
+        colour: PAINT.navy,
+      })),
+      { size: [0.12, 0.3, 0.12], position: [0.5, 1.75, -3.9], colour: PAINT.navy },
+      { size: [0.12, 0.3, 0.12], position: [-0.5, 1.75, -3.9], colour: PAINT.navy },
+
+      // A beacon on the cab roof and a mast beside it, both off-centre. This
+      // is the unit whose whole character is that nothing on it is square.
+      { size: [0.1, 0.12, 0.1], position: [0.5, 1.95, 3.4], colour: PAINT.gold },
+      { size: [0.05, 0.4, 0.05], position: [-1.0, 2.2, 3.2], colour: PAINT.white },
+
+      // And a second patch, on the other side, at a different angle again.
+      { size: [0.05, 0.35, 0.45], position: [1.55, 0.4, -4.7], rotation: [0, 0, -0.12], colour: PAINT.red, bevel: 0.1 },
     ];
 
     return rig(plates, [

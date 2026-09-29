@@ -54,6 +54,17 @@ export const PALETTE = {
    */
   void: 0x070a14,
   void2: 0x0c1120,
+  /**
+   * The sky itself: black, or near enough that no screen will say otherwise.
+   *
+   * About a third of `void`, which was already dark enough to read as black in
+   * a lit room and faintly blue on a good panel in a dark one. What is left is
+   * not there to be seen — it is there so the grade's lift on the darkest
+   * pixels has somewhere to lift from, which is what stops the nebula's outer
+   * edges banding as they fade out. Deep space is the absence of anything, and
+   * that is what this should read as.
+   */
+  deep: 0x04060d,
   starCool: 0xcfe3ff,
   starWarm: 0xfff1d6,
   nebulaViolet: 0x3a2f6b,

@@ -23,6 +23,48 @@ import { mulberry32 } from "../core/rng";
  */
 
 /**
+ * A plain star: a soft round point that falls off to nothing at its edge.
+ *
+ * The far field used three.js's stock point material, which draws points as
+ * **squares** when it has no texture to stamp. At two pixels a square is a
+ * pixel, and a sky full of them reads as noise rather than as stars — which is
+ * most of what "pixelated" meant.
+ *
+ * A round falloff costs one length and one smoothstep and gives a point that
+ * looks like a light instead of a sample.
+ */
+const FAR_VERTEX = /* glsl */ `
+attribute float aSize;
+varying vec3 vTint;
+
+void main() {
+  vTint = color;
+  gl_Position = projectionMatrix * modelViewMatrix * vec4( position, 1.0 );
+  gl_PointSize = aSize;
+}
+`;
+
+const FAR_FRAGMENT = /* glsl */ `
+varying vec3 vTint;
+
+void main() {
+  // Distance from the centre of the sprite, 0 at the middle, 1 at the edge.
+  float d = length( gl_PointCoord - 0.5 ) * 2.0;
+
+  // A small solid core inside a soft halo. Two stops rather than one, because
+  // a single smoothstep across the whole sprite gives a fuzzy ball with no
+  // centre — and what makes a point read as a star is that it has one.
+  float core = 1.0 - smoothstep( 0.0, 0.55, d );
+  float halo = ( 1.0 - smoothstep( 0.25, 1.0, d ) ) * 0.42;
+
+  float alpha = clamp( core + halo, 0.0, 1.0 );
+  if ( alpha < 0.01 ) discard;
+
+  gl_FragColor = vec4( vTint, alpha );
+}
+`;
+
+/**
  * The star shape: a four-point glint, drawn in the fragment stage.
  *
  * A sprite would need a texture, and a texture would need loading, decoding
@@ -36,12 +78,20 @@ varying float vFade;
 void main() {
   vec2 p = abs( gl_PointCoord - 0.5 ) * 2.0;
 
-  // Two crossed tapers: bright along each axis, falling away fast off it.
-  float cross = max( 1.0 - p.x * 5.5 - p.y * 0.55, 1.0 - p.y * 5.5 - p.x * 0.55 );
-  // A small core so the centre does not read as a hole where the arms meet.
-  float core = 1.0 - smoothstep( 0.0, 0.42, length( p ) );
+  /*
+    Two crossed tapers, pulled in from what they were.
 
-  float alpha = clamp( max( cross, core * 0.85 ), 0.0, 1.0 ) * vFade;
+    The arms used to reach right across the sprite and were drawn additively on
+    top of each other, which is what made the glow harsh — a bright cross with
+    a hot centre, at every size, at every distance. Steeper tapers keep the
+    four-point shape while confining it to the middle of the sprite, and the
+    core is dimmer than the arms rather than brighter, so the centre stops
+    blooming.
+  */
+  float cross = max( 1.0 - p.x * 9.0 - p.y * 0.85, 1.0 - p.y * 9.0 - p.x * 0.85 );
+  float core = ( 1.0 - smoothstep( 0.0, 0.3, length( p ) ) ) * 0.6;
+
+  float alpha = clamp( max( cross, core ), 0.0, 1.0 ) * vFade;
   if ( alpha < 0.01 ) discard;
 
   gl_FragColor = vec4( uColor, alpha );
@@ -61,10 +111,27 @@ void main() {
   // pass it twinkles as the rasteriser drops it, and nothing here may flicker.
   gl_PointSize = max( aSize * ( 220.0 / max( -view.z, 1.0 ) ), 1.5 );
 
-  // Fade in from the far clip rather than popping into existence, and fade out
-  // again very close to the camera, where a glint would be a blinding square.
   float d = -view.z;
-  vFade = aBright * smoothstep( 0.0, 14.0, d ) * ( 1.0 - smoothstep( 160.0, 240.0, d ) );
+
+  /*
+    Brightness falls away with distance, which it did not before.
+
+    There was a fade in very close and a fade out at the far end, and between
+    the two — which is nearly all of the volume — every glint burned at exactly
+    the same brightness whether it was twenty units away or a hundred and fifty.
+    A field of equally bright lights at unequal distances has no depth in it at
+    all; the eye reads the whole layer as one sheet of lamps.
+
+    An inverse falloff, softened so the nearest do not blow out, is what turns
+    the layer back into a volume.
+  */
+  float falloff = 1.0 / ( 1.0 + pow( d / 46.0, 1.5 ) );
+
+  // Still faded out at the very near and very far ends: one to stop a glint
+  // filling the screen as it passes, the other to stop it arriving abruptly.
+  vFade = aBright * falloff
+        * smoothstep( 0.0, 14.0, d )
+        * ( 1.0 - smoothstep( 190.0, 300.0, d ) );
 }
 `;
 
@@ -72,7 +139,7 @@ export class Starfield {
   readonly far: THREE.Points;
   readonly near: THREE.Points;
 
-  private readonly farMaterial: THREE.PointsMaterial;
+  private readonly farMaterial: THREE.ShaderMaterial;
   private readonly nearMaterial: THREE.ShaderMaterial;
 
   constructor(scene: THREE.Scene, seed: number) {
@@ -108,17 +175,34 @@ export class Starfield {
       farColors[i * 3 + 2] = tint.b * level;
     }
 
+    /*
+      Sizes vary, and only a few are large.
+
+      Every star being the same size was the other half of the flat look: a
+      sky of identical dots reads as a texture, and what makes one read as a
+      field of stars at different magnitudes is that most are barely there and
+      a handful are not.
+    */
+    const farSizes = new Float32Array(SECTOR.farStars);
+    for (let i = 0; i < SECTOR.farStars; i++) {
+      farSizes[i] = 1.5 + Math.pow(rng(), 3.1) * 3.4;
+    }
+
     const farGeometry = new THREE.BufferGeometry();
     farGeometry.setAttribute("position", new THREE.BufferAttribute(farPositions, 3));
     farGeometry.setAttribute("color", new THREE.BufferAttribute(farColors, 3));
+    farGeometry.setAttribute("aSize", new THREE.BufferAttribute(farSizes, 1));
 
-    this.farMaterial = new THREE.PointsMaterial({
-      size: 1.9,
-      sizeAttenuation: false,
-      vertexColors: true,
+    this.farMaterial = new THREE.ShaderMaterial({
+      vertexShader: FAR_VERTEX,
+      fragmentShader: FAR_FRAGMENT,
       transparent: true,
-      // Behind everything, and never occluding anything: the far field is the
-      // inside of the sky, not an object in the sector.
+      // `vertexColors` is what puts the `color` attribute in reach of the
+      // shader as the built-in `color` varying source.
+      vertexColors: true,
+      // The sky writes no depth. It is drawn into its own scene before
+      // anything solid, which is what keeps it behind the ship — see the
+      // diorama pass, where that ordering is the whole point.
       depthWrite: false,
       depthTest: false,
     });

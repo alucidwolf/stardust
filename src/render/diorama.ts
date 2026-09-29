@@ -90,6 +90,27 @@ void main() {
   vec4 sharp = texture2D( tSharp, vUv );
   vec4 soft = texture2D( tSoft, vUv );
 
+  float raw = texture2D( tDepth, vUv ).x;
+
+  /*
+    The sky is exempt.
+
+    Nothing in the sky writes depth, so wherever only the sky was drawn the
+    depth buffer still holds the cleared far value — and that put every star in
+    the field at maximum far blur, permanently. Stars came out as soft grey
+    smudges rather than as points of light, which is not depth of field doing
+    its job, it is depth of field applied to something that has no depth.
+
+    A real lens focused a few metres away would blur a star too. It would also
+    be wrong: a star is the one thing in this scene the eye expects to be a
+    hard point, and softening it reads as dirty glass rather than as distance.
+  */
+  if ( raw >= 0.999999 ) {
+    gl_FragColor = vec4( sharp.rgb, 1.0 );
+    #include <colorspace_fragment>
+    return;
+  }
+
   float depth = eyeDepth( vUv );
   float signedDistance = depth - uFocus;
 
@@ -273,17 +294,35 @@ export class Diorama {
     );
   }
 
-  /** `focusDistance` is how far the subject is from the camera, in metres. */
+  /**
+   * `focusDistance` is how far the subject is from the camera, in metres.
+   *
+   * The sky is drawn first, into the same target, and writes no depth. That
+   * ordering is the whole reason it exists as a separate scene: everything in
+   * it is transparent, and transparent objects are drawn *after* all solid
+   * geometry, so a sky left in the main scene is painted over the top of your
+   * ship every frame. Ignoring depth — which a sky reasonably wants to do —
+   * only made it worse, because then nothing could stop it.
+   *
+   * Drawn first and depth-free, it is behind everything by construction, and
+   * the ship is solid because the ship is drawn afterwards.
+   */
   render(
     scene: THREE.Scene,
+    sky: THREE.Scene,
     camera: THREE.PerspectiveCamera,
     focusDistance: number,
   ): void {
     const renderer = this.renderer;
 
     renderer.setRenderTarget(this.sceneTarget);
-    renderer.clear();
+    renderer.autoClear = true;
+    renderer.render(sky, camera);
+    // The sky has left the depth buffer untouched, so the scene has a clean
+    // one to sort itself against.
+    renderer.autoClear = false;
     renderer.render(scene, camera);
+    renderer.autoClear = true;
 
     // --- blur, at half resolution -------------------------------------------
     const halfWidth = this.blurA.width;

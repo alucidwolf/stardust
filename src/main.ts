@@ -37,16 +37,28 @@ renderer.setPixelRatio(Math.min(window.devicePixelRatio, RENDER.maxPixelRatio));
 renderer.setSize(window.innerWidth, window.innerHeight);
 
 const scene = new THREE.Scene();
-/*
-  Near enough to black, and deliberately so.
 
-  This is the darkest token in the set rather than a colour invented for the
-  purpose, so the sky is still the sector's own blue — just far enough down
-  that nothing reads it as blue on its own. Every visible thing in an empty
-  patch of sky is therefore something that is actually there: a star, the
-  nebula, or stardust catching the light.
+/*
+  The sky is its own scene, and that is not tidiness.
+
+  Everything in it is transparent, and transparent objects are drawn *after*
+  all solid geometry — so a starfield left in the main scene is painted over
+  the top of your ship every frame. Ignoring depth, which a sky reasonably
+  wants to do, only made it worse: then nothing could stop it. Held apart and
+  drawn first, it is behind everything by construction and the ships are solid.
 */
-scene.background = new THREE.Color(PALETTE.void);
+const sky = new THREE.Scene();
+
+/*
+  Black, or near enough that no screen will tell you otherwise.
+
+  There is a whisper of blue left in it rather than a true zero, and it earns
+  its place: the grade lifts the darkest pixels very slightly, and having
+  somewhere to lift *from* is what keeps the nebula's faint outer edges from
+  banding as they fade into the background. At this level nothing reads it as
+  blue — it reads as the absence of anything, which is the point.
+*/
+sky.background = new THREE.Color(PALETTE.deep);
 
 const diorama = new Diorama(renderer);
 diorama.setSize(window.innerWidth, window.innerHeight, renderer.getPixelRatio());
@@ -56,8 +68,8 @@ diorama.setSize(window.innerWidth, window.innerHeight, renderer.getPixelRatio())
 const sectorSeed = resolveSectorSeed(location.hash);
 const sector = sectorCode(sectorSeed);
 
-const starfield = new Starfield(scene, sectorSeed);
-const nebula = new Nebula(scene, sectorSeed);
+const starfield = new Starfield(sky, sectorSeed);
+const nebula = new Nebula(sky, sectorSeed);
 
 const pilot = new Pilot();
 const autopilot = new Autopilot(sectorSeed);
@@ -346,7 +358,7 @@ const loop = createLoop((dt, elapsed) => {
   // Drag and wheel are accumulators; the camera has now had its look at them.
   input.consume();
 
-  diorama.render(scene, rig.camera, rig.focusDistance(pilot));
+  diorama.render(scene, sky, rig.camera, rig.focusDistance(pilot));
 });
 
 // -- lifecycle ---------------------------------------------------------------
@@ -411,6 +423,7 @@ rig.update(0.016, input, pilot);
 if (import.meta.env.DEV) {
   (window as unknown as Record<string, unknown>).__stardust = {
     scene,
+    sky,
     camera: rig.camera,
     renderer,
     diorama,
@@ -437,6 +450,7 @@ if (import.meta.env.DEV) {
  * stardust, the unit and the diorama pass are all built in turn. That stall
  * lands exactly where it is most visible: on the first thing anyone sees.
  */
+renderer.compile(sky, rig.camera);
 renderer.compile(scene, rig.camera);
 
 loop.start();

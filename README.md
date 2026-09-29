@@ -69,6 +69,31 @@ the camera is**, on the back vents and thrusters, since the camera lives behind.
 And **thrust is the animation** — engines breathe from `thrust` toward `signal`
 and the bell stretches with them. Nothing loops, flickers or pulses at you.
 
+**Detail goes on the back and the top**, which is the only side the camera ever
+has. The vocabulary is shared across all four, and that is deliberate: it is
+part of what makes four silhouettes read as one fleet. A seam or band crosses
+any plate large enough to read as a blank slab — the Bastion's shield is the
+clearest case, where one vertical rib left the largest surface in the fleet
+looking like an unfinished slab until two bands and four corner blocks crossed
+it. Louvres and radiator panels go on the rear faces, vernier housings with gold
+lips sit on the shoulders, and canted skirts and wing fences break the straight
+silhouette edges that made legs read as two posts. Each unit gets exactly one
+asymmetric mast or beacon, because a pair reads as ears.
+
+Old Tuesday's frame makes the point best. Four ribs and eight uprights gave a
+row of rectangles, and a rectangle carries no load — the hauling frame read as a
+*drawing* of a hauling frame. One diagonal per bay, alternating direction down
+the length, is the single change that makes it look like it could hold a
+container up. The bays are unevenly spaced, so no two struts are the same: each
+one's half-length and tilt are worked out from the diagonal of its own bay
+rather than chosen.
+
+The plumes fade out along their length rather than ending at an edge. A cone
+drawn flat is a hard triangle from every angle except dead astern, where it is a
+disc and the shape never shows. Exhaust does not stop; it thins until it is
+gone, and the fade is cubed so the bright part stays gathered at the bell
+instead of the whole cone glowing evenly and reading as a solid object.
+
 The bevelled box each plate is built from is wound by hand: six face quads,
 twelve edge quads and eight corner triangles, and the handedness of the corner
 decides which way round its triangle goes. Get one wrong and you have a plate
@@ -345,14 +370,30 @@ Two layers, doing different jobs.
 The **far field** is 2,600 cool points pinned to the camera. It never gets
 closer and never parallaxes, because it is meant to be unreachably distant —
 moving it would immediately tell you how big the sector really is. The **near
-layer** is 150 warm four-point glints scattered through the volume you actually
+layer** is 55 warm four-point glints scattered through the volume you actually
 fly in, and these *do* parallax. That contrast is the entire depth cue: a still
 background behind sliding foreground points. Either layer on its own gives none
 of it.
 
-Both are one draw call, and the glints are shaped in the fragment stage rather
-than from a sprite — a four-point star is two crossed tapers, which is cheaper
-and sharper as maths than as a texture somebody has to download.
+Both are one draw call, and both are shaped in the fragment stage rather than
+from a sprite — cheaper and sharper as maths than as a texture somebody has to
+download.
+
+That is not only an optimisation. The far field used three.js's stock point
+material, which draws a point as a **square** when it has no texture to stamp —
+so the sky was 2,600 small squares, which at two pixels across is a sky full of
+noise rather than of stars. A round falloff costs one length and one smoothstep,
+and the sizes vary with most stars barely there and a handful much larger,
+because a field of identical dots reads as a texture whatever shape they are.
+
+The glints had a second problem that no screenshot of a single frame would show.
+There was a fade in very close and a fade out at the far end, and between the
+two — which is nearly all of the volume — every glint burned at exactly the same
+brightness whether it was twenty units away or a hundred and fifty. A field of
+equally bright lights at unequal distances has no depth in it at all; the eye
+reads the whole layer as one sheet of lamps. They now fall away with distance,
+and their four-point cross is steeper and its centre dimmer than its arms, which
+is what stops the middle of every glint blooming.
 
 The stars are scattered by distributing their **height** uniformly rather than
 their latitude. Picking a latitude at random is the obvious approach and is
@@ -434,17 +475,59 @@ from Currents, where the two averaged every surface to grey and the palette went
 muddy.
 
 **Space here is near enough to black.** The background is the darkest token in
-the set rather than a colour invented for it, so the sky is still the sector's
-own blue, just far enough down that nothing reads it as blue on its own. The
-grade's lift on dark areas is now a whisper — a twenty-fifth of what Currents
-used — so that black still reads as *space* rather than as a hole in the canvas.
-Everything brighter than that is something actually there: a star, the nebula,
-or stardust catching the light.
+the set rather than a colour invented for it, and it now sits at about a third
+of what it was: dark enough that no screen will call it anything but black. What
+little colour survives in it is not there to be seen. It is there so the grade's
+lift on the darkest pixels has somewhere to lift from, which is what stops the
+nebula's outer edges banding as they fade out. Everything brighter than that is
+something actually there: a star, the nebula, or stardust catching the light.
 
 This reverses what the design system originally said — "space is deep blue,
 never black" — deliberately, and `space-and-craft.md` has been updated to
 match, with the old rule recorded beside the new one. The first version left
-the sky a milky navy with the stars washing out against it.
+the sky a milky navy with the stars washing out against it. Taking it further
+down since is not a second reversal; the rule did not change, only how far
+"near enough to black" is taken.
+
+### Your own engines light the hull
+
+There is one more light, and it is the reason the units are visible at all.
+
+The camera sits behind your unit and the star is somewhere out in the sky, so
+for much of a sortie the entire side of the unit you can see is its dark side.
+That is measurable rather than a matter of taste: against a surface pointed
+straight at the camera, the key light's contribution came in at **minus a
+third** — it is behind everything you can look at — leaving the visible hull to
+the nebula fill and a weak ambient. Sampled off the canvas, the median hull
+pixel sat at 36 where the white paint is 219. Half the ship was at a sixth of
+its own paint value, and on the Bastion a third of its pixels were not
+distinguishable from empty space at all.
+
+So the bells light it. This is not a cheat to brighten the scene: the plumes are
+already the brightest thing on screen from that angle, and a thruster that glows
+without casting any light was the actual mistake. Three details matter, and each
+was settled by measurement rather than by eye:
+
+- **Linear falloff, not square.** Square put the engine housings a few tenths of
+  a unit from the source and blew 8% of the hull past white while the far end
+  stayed dark — brighter, no more readable, and clipped.
+- **Set well back down the plume**, not at the nozzle. At one unit behind the
+  bell the gold rims pinned a channel across 6.8% of the hull, flat yellow with
+  their own bevels burned off. At one point eight that falls to 0.01%, for a 5%
+  loss of median brightness.
+- **Lit with the plume's white-hot core, not its blue edge.** The raw thrust
+  blue drove the hull to a blue-over-red ratio of 1.86 when the white paint's
+  own ratio is 1.06 — the tricolour stopped being white, navy and red and became
+  three blues. Pulled most of the way to the star's white it lands at 1.17:
+  still cool, still obviously the engines doing it, and the paint is the paint.
+
+The result, on the Bastion from the default camera: median hull brightness 25 →
+63, visible hull pixels 18,358 → 28,131, and nothing clipped.
+
+Exactly two bells cast light on every unit, whatever it is carrying, because
+three.js compiles a material against the number of lights in the scene — a unit
+that brought its own count would recompile every material in the sector on the
+frame you swapped to it.
 
 ## The diorama pass
 
@@ -453,6 +536,19 @@ Water had scattering to tell the eye how far away things were; space has
 nothing, so without a shallow depth of field the sector reads as a flat sheet of
 shapes at no particular distance. Focus follows your unit, so the subject stays
 crisp while near debris and the far field soften.
+
+**The sky is drawn first, into its own scene.** Stars and the nebula write no
+depth, and an object that writes no depth is sorted as a transparency — which in
+three.js means it is drawn *after* all the solid geometry, on top of it. The
+symptom was that space showed faintly through the hull. Measured by rendering
+one frame both ways and counting, the sky was painting over **20.84%** of the
+unit's own pixels; drawn in its own pass first, into a clean depth buffer, that
+falls to **0.07%**, and those remaining pixels are silhouette antialiasing.
+
+The sky is also exempt from the blur. The composite reads the depth buffer to
+decide how far out of focus a pixel is, and pixels the sky wrote are at the far
+plane — so every star was getting the maximum blur and smearing into a haze.
+Anything at the far plane is passed through sharp.
 
 ## The boot screen
 

@@ -227,10 +227,35 @@ export function plateMaterial(): THREE.MeshLambertMaterial {
 export function engineGlow(radius: number, length: number): THREE.Mesh {
   // A cone rather than a sphere: thrust has a direction, and a round bloom
   // behind a unit reads as a light bulb rather than as an engine.
-  const geometry = new THREE.ConeGeometry(radius, length, 6, 1, true);
+  const geometry = new THREE.ConeGeometry(radius, length, 10, 6, true);
   // Point it backwards along -Z and put its wide end at the bell.
   geometry.rotateX(-Math.PI / 2);
   geometry.translate(0, 0, -length / 2);
+
+  /*
+    Fade the plume out along its length, rather than ending it with an edge.
+
+    Drawn flat it was a hard-edged triangle — fine from dead astern, where it is
+    a disc and the shape never shows, and obviously a flat sheet from anywhere
+    else. Exhaust does not stop; it thins until it is gone. The alpha is carried
+    in a four-wide colour attribute, which three.js multiplies into the material
+    the same way it multiplies colour, so the material's own tint and opacity
+    still drive the whole thing from `update` exactly as before.
+
+    Cubed rather than linear, so the bright part stays gathered at the bell
+    instead of the whole cone glowing evenly and reading as a solid object.
+  */
+  const position = geometry.getAttribute("position");
+  const shade = new Float32Array(position.count * 4);
+  for (let i = 0; i < position.count; i++) {
+    const along = THREE.MathUtils.clamp(-position.getZ(i) / length, 0, 1);
+    const fade = Math.pow(1 - along, 3);
+    shade[i * 4] = 1;
+    shade[i * 4 + 1] = 1;
+    shade[i * 4 + 2] = 1;
+    shade[i * 4 + 3] = fade;
+  }
+  geometry.setAttribute("color", new THREE.BufferAttribute(shade, 4));
 
   const material = new THREE.MeshBasicMaterial({
     transparent: true,
@@ -238,6 +263,7 @@ export function engineGlow(radius: number, length: number): THREE.Mesh {
     depthWrite: false,
     blending: THREE.AdditiveBlending,
     side: THREE.DoubleSide,
+    vertexColors: true,
   });
 
   const mesh = new THREE.Mesh(geometry, material);
