@@ -95,8 +95,24 @@ about 14% off perfect, and the naive one over 100%.
 
 **One nebula per sector**, teal or violet, never both and never filling the
 screen. That last part is a rule: a nebula you can turn toward or away from is a
-landmark, and one that is always there is weather. Its colour, position and lean
-all come from the seed, so a sector's sky is part of its identity.
+landmark, and one that is always there is weather. Its colour, bearing, pitch
+and lean all come from the seed, so a sector's sky is part of its identity. At
+its strongest it lights about a quarter of the view.
+
+Its bearing is drawn from the forward arc rather than the whole circle. Drawing
+from the whole circle reads better in principle and fails in practice: most of
+the time the sector's one light source spends the entire flight behind your
+shoulder, and because it also tints the fill light, the sector loses its colour
+without ever showing you why. Measured over a long drift, a full-circle bearing
+lit not one pixel.
+
+It is also held well inside the frustum rather than out on the star shell. The
+distance is arbitrary — it travels with the camera and ignores depth, so only
+the angle it covers means anything — and parked out near the far plane it was
+**clipped away entirely**. A `0.4` near against a `2000` far leaves so little
+depth precision that a surface several hundred units short of the far plane
+still rounds past it. The symptom was the worst kind: not a glitch, just
+nothing, with the object present, visible, unculled, and drawing.
 
 **Stardust** is the app's namesake and is treated as such — in quiet moments it
 should be the brightest thing on screen. Tiny octahedra rather than round
@@ -112,12 +128,33 @@ does not reappear ahead of you a second later.
 
 ## Light
 
-One key star, neutral to faintly warm, with a weak cool fill from the nebula's
-side. Deliberately **not** a warm key against a cool ambient — that rule is
-inherited from Currents, where the two averaged every surface to grey and the
-palette went muddy. The warmth that makes the scene feel lit arrives in the
-diorama grade instead, after lighting, where it pulls apart from the cool
-shadows rather than cancelling against them.
+**The stars and the nebula are the only light in this sector.** Every light in
+the scene is a thing you can point at on screen: the key is the sector's own
+star, and both the fill and what little ambient there is are the nebula —
+coloured from it and aimed from its side of the sky, so a hull turned away from
+the star is lit by the cloud behind it rather than by a general glow with no
+source. The usual trick of a strong sky-coloured ambient is the wrong one here;
+it lifts every surface whether or not anything is shining on it, and in space
+that reads immediately as a lamp just off camera. What ambient remains is only
+enough that an unlit plate is a shape rather than a silhouette, because the
+design asks for soft light on hard shapes, not for no light at all.
+
+Deliberately **not** a warm key against a cool ambient — that rule is inherited
+from Currents, where the two averaged every surface to grey and the palette went
+muddy.
+
+**Space here is near enough to black.** The background is the darkest token in
+the set rather than a colour invented for it, so the sky is still the sector's
+own blue, just far enough down that nothing reads it as blue on its own. The
+grade's lift on dark areas is now a whisper — a twenty-fifth of what Currents
+used — so that black still reads as *space* rather than as a hole in the canvas.
+Everything brighter than that is something actually there: a star, the nebula,
+or stardust catching the light.
+
+This deliberately reverses the design system's "space is deep blue, never
+black". That was a considered instruction, not an oversight, and
+`design-system/space-and-craft.md` should be updated to match rather than left
+to contradict the code.
 
 ## The diorama pass
 

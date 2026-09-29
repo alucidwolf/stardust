@@ -17,6 +17,16 @@ export const SECTOR = {
   /** Drifting stardust in the volume immediately around you. */
   motes: 900,
   moteRadius: 46,
+  /**
+   * How strongly the nebula shows.
+   *
+   * It has to carry itself now. It used to be helped along by the grade's lift
+   * on dark areas, and once the sky went to near-black that lift went with it —
+   * leaving the nebula as a barely-there smudge. Since the stars and the nebula
+   * are the only light in this sector, a nebula you have to look for is not
+   * doing its job.
+   */
+  nebulaStrength: 1.45,
 } as const;
 
 export const PALETTE = {
@@ -67,20 +77,20 @@ export const DIORAMA = {
   /** Warm the light, cool the dark. Never a warm key against a cool ambient. */
   warmHighlights: [0.05, 0.032, 0.006] as [number, number, number],
   /**
-   * A quarter of what Currents used, and the reason is the background.
+   * Almost nothing, and the reason is the background.
    *
    * The grade adds this to the darkest parts of the image in linear light, and
-   * sRGB encoding expands small linear values enormously on the way out — 0.038
-   * linear is about 0.21 once encoded. Underwater that never showed, because
-   * the darkest thing on screen was still lit water. Out here the darkest thing
-   * is empty space, so the same number stopped being a tint in the shadows and
-   * became the colour of the sky: deep space came out a milky navy with the
-   * stars washing out against it.
+   * sRGB encoding expands small linear values enormously on the way out — the
+   * 0.038 this started at is about 0.21 once encoded. Underwater that never
+   * showed, because the darkest thing on screen was still lit water. Out here
+   * the darkest thing is empty space, so the same number stopped being a tint
+   * in the shadows and became the colour of the sky.
    *
-   * Space is deep blue and never black, but it earns the blue from the nebula
-   * and the far field, not from the grade.
+   * What is left is a whisper of blue in the deepest shadow, so that black
+   * still reads as *space* rather than as a hole in the canvas. Everything
+   * brighter than that is a star or the nebula putting it there.
    */
-  coolShadows: [0.0, 0.003, 0.011] as [number, number, number],
+  coolShadows: [0.0, 0.0008, 0.003] as [number, number, number],
   saturation: 1.06,
   vignette: 0.34,
 } as const;

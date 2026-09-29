@@ -75,6 +75,11 @@ void main() {
 }
 `;
 
+/** How far out the body sits, as a fraction of the star shell's radius. */
+const NEBULA_DISTANCE = 0.35;
+/** Its width, as a multiple of that distance — so this sets the angle it covers. */
+const NEBULA_SPREAD = 1.42;
+
 export class Nebula {
   readonly mesh: THREE.Mesh;
   private readonly material: THREE.ShaderMaterial;
@@ -86,9 +91,22 @@ export class Nebula {
     // nightmare to light against, and neither would read as the sector's own.
     const color = new THREE.Color(rng() < 0.5 ? PALETTE.nebulaViolet : PALETTE.nebulaTeal);
 
-    // Big enough to be a region of sky, nowhere near big enough to be all of
-    // it. Placed on the shell just inside the far stars.
-    const size = SECTOR.skyRadius * 1.15;
+    /*
+      Big enough to be a region of sky, nowhere near big enough to be all of it.
+
+      Held well inside the frustum rather than out on the star shell, and the
+      distance is arbitrary on purpose: this travels with the camera and ignores
+      depth, so how far away it "is" means nothing — only how much sky it covers.
+      Parked out near the far plane it was being clipped away entirely, because
+      a 0.4 near against a 2000 far leaves so little depth precision that a
+      surface a few hundred units short of the far plane still rounds past it.
+      The symptom is the worst kind: not a glitch, just nothing, with the object
+      present, visible, unculled and drawing.
+
+      Size and distance move together, so the angular size is unchanged.
+    */
+    const distance = SECTOR.skyRadius * NEBULA_DISTANCE;
+    const size = distance * NEBULA_SPREAD;
     const geometry = new THREE.PlaneGeometry(size, size);
 
     this.material = new THREE.ShaderMaterial({
@@ -97,7 +115,7 @@ export class Nebula {
       uniforms: {
         uColor: { value: color },
         uLean: { value: rng() * 1.2 - 0.6 },
-        uOpacity: { value: 0.5 },
+        uOpacity: { value: SECTOR.nebulaStrength },
       },
       transparent: true,
       depthWrite: false,
@@ -112,12 +130,22 @@ export class Nebula {
     // it rather than being washed out by it.
     this.mesh.renderOrder = -3;
 
-    // Somewhere off to one side and a little above or below the plane you fly
-    // in, so it is something you come across rather than something you are
-    // always looking at.
-    const bearing = rng() * Math.PI * 2;
+    /*
+      Off to one side and a little above or below the line you fly, so it is
+      something you come across rather than something you stare at — but within
+      the arc you can actually see from a standing start.
+
+      A bearing drawn from the whole circle reads well in principle and fails in
+      practice: two thirds of the time the sector's one light source spends the
+      entire flight behind your shoulder, and since it is also what tints the
+      fill light, the sector loses its colour without ever showing you why.
+      Measured over a long drift it lit not one pixel.
+
+      Forward is -Z, so the arc is centred there and wide enough that no two
+      seeds put it in the same place.
+    */
+    const bearing = -Math.PI / 2 + (rng() - 0.5) * 2.2;
     const pitch = (rng() - 0.5) * 0.7;
-    const distance = SECTOR.skyRadius * 0.82;
     this.offset = new THREE.Vector3(
       Math.cos(bearing) * Math.cos(pitch) * distance,
       Math.sin(pitch) * distance,

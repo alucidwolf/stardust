@@ -23,9 +23,16 @@ renderer.setPixelRatio(Math.min(window.devicePixelRatio, RENDER.maxPixelRatio));
 renderer.setSize(window.innerWidth, window.innerHeight);
 
 const scene = new THREE.Scene();
-// Space is deep blue, never black. The far field sits on this, and anything
-// that outruns the star shell falls back to it rather than to a void.
-scene.background = new THREE.Color(PALETTE.void2);
+/*
+  Near enough to black, and deliberately so.
+
+  This is the darkest token in the set rather than a colour invented for the
+  purpose, so the sky is still the sector's own blue — just far enough down
+  that nothing reads it as blue on its own. Every visible thing in an empty
+  patch of sky is therefore something that is actually there: a star, the
+  nebula, or stardust catching the light.
+*/
+scene.background = new THREE.Color(PALETTE.void);
 
 const diorama = new Diorama(renderer);
 diorama.setSize(window.innerWidth, window.innerHeight, renderer.getPixelRatio());
@@ -61,22 +68,33 @@ const motes = new Motes(scene, sectorSeed, drift);
 // -- light -------------------------------------------------------------------
 
 /**
- * One key star, and a cool fill from the nebula's side.
+ * The key star, and the nebula. Nothing else lights this sector.
  *
- * Deliberately not a warm key against a cool ambient — that is the rule
- * inherited from Currents, where it averaged every surface to grey. The key is
- * neutral to faintly warm and the fill is cool and weak, and the warmth that
- * makes the scene feel lit arrives in the diorama grade instead.
+ * Every light here is a thing you can point at on screen. The key is the
+ * sector's own star, and both the fill and what little ambient there is are
+ * the nebula — coloured from it and aimed from its side of the sky, so a hull
+ * turned away from the star is lit by the cloud behind it rather than by a
+ * general glow with no source.
+ *
+ * The ambient used to be the sky colour at full strength, which is the usual
+ * way to keep shadows readable and is the wrong one here: it lifts every
+ * surface uniformly whether or not anything is shining on it, and in space
+ * that reads immediately as a lamp just off camera.
+ *
+ * Still deliberately not a warm key against a cool ambient — that rule is
+ * inherited from Currents, where the two averaged every surface to grey.
  */
-const key = new THREE.DirectionalLight(PALETTE.starWarm, 2.1);
+const key = new THREE.DirectionalLight(PALETTE.starWarm, 2.3);
 key.position.set(-0.45, 0.62, 0.64).normalize().multiplyScalar(100);
 scene.add(key);
 
-const fill = new THREE.DirectionalLight(PALETTE.nebulaTeal, 0.55);
+const fill = new THREE.DirectionalLight(PALETTE.nebulaTeal, 0.42);
 fill.position.copy(nebula.direction).normalize().multiplyScalar(100);
 scene.add(fill);
 
-scene.add(new THREE.AmbientLight(PALETTE.void2, 1.1));
+// Enough that an unlit plate is a shape rather than a silhouette, and no more.
+// The design asks for soft light on hard shapes, not for no light at all.
+scene.add(new THREE.AmbientLight(PALETTE.nebulaViolet, 0.32));
 
 // -- keep the sky with us ----------------------------------------------------
 
