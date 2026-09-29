@@ -247,6 +247,13 @@ const loop = createLoop((dt, elapsed) => {
   input.tick(dt);
 
   const piloted = input.steering || input.keySteering;
+
+  // While the pilot is flying, the autopilot keeps reading their heading as its
+  // own baseline, so the moment they let go it carries on from there rather
+  // than steering back to wherever its waves had got to. Done every frame
+  // rather than on release, so there is no handover edge to miss.
+  if (piloted) autopilot.hold(elapsed, pilot);
+
   const command = piloted
     ? input.steering
       ? pointerCommand()

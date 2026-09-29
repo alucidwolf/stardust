@@ -203,6 +203,71 @@ console.log("\nthe autopilot");
   console.log(`  drift off lane ${pilot.position.y.toFixed(0)}`);
 }
 
+console.log("\nletting go");
+{
+  /*
+    The heading you steered to has to survive the handover.
+
+    This is a regression test for a real bug. The autopilot's waves originally
+    described an absolute heading rather than a deviation, so releasing the
+    stick handed control to something that immediately steered back to whatever
+    bearing its sines were asking for. Every manual turn quietly undid itself a
+    few seconds after the button came up, and the ship went back where it
+    started — which is not a subtle fault, but is easy to miss in a five-second
+    test because it takes a while to unwind.
+
+    So: fly by hand for long enough to be somewhere genuinely different, let
+    go, and ask where the heading is half a minute later.
+  */
+  const pilot = new Pilot();
+  const autopilot = new Autopilot(20250928);
+
+  const startHeading = pilot.forward(new THREE.Vector3()).clone();
+
+  // Six seconds of holding right.
+  const steerSteps = Math.round(6 / DT);
+  for (let i = 0; i < steerSteps; i++) {
+    const t = i * DT;
+    autopilot.hold(t, pilot);
+    pilot.update(DT, t, {
+      yaw: pilot.yaw + 0.9,
+      pitch: 0,
+      turnRate: FLIGHT.turnRate,
+    });
+  }
+
+  const steeredHeading = pilot.forward(new THREE.Vector3()).clone();
+  const turnedBy = startHeading.angleTo(steeredHeading);
+  check(turnedBy > 0.5, `steering actually changed the heading (${THREE.MathUtils.radToDeg(turnedBy).toFixed(0)}°)`);
+
+  // Let go, and give it thirty seconds to misbehave.
+  const t0 = steerSteps * DT;
+  const coastSteps = Math.round(30 / DT);
+  for (let i = 0; i < coastSteps; i++) {
+    const t = t0 + i * DT;
+    pilot.update(DT, t, autopilot.update(t, pilot, 1));
+  }
+
+  const after = pilot.forward(new THREE.Vector3());
+  const driftedFromSteered = after.angleTo(steeredHeading);
+  const backToStart = after.angleTo(startHeading);
+
+  // It is allowed to wander — that is the whole point of it — but it must
+  // wander from where it was left, not back to where it began.
+  check(
+    backToStart > turnedBy * 0.6,
+    `it does not creep back to the original heading (${THREE.MathUtils.radToDeg(backToStart).toFixed(0)}° away, was ${THREE.MathUtils.radToDeg(turnedBy).toFixed(0)}°)`,
+  );
+  check(
+    driftedFromSteered < 1.2,
+    `it holds roughly the heading it was given (${THREE.MathUtils.radToDeg(driftedFromSteered).toFixed(0)}° of drift in thirty seconds)`,
+  );
+
+  console.log(`  steered to     ${THREE.MathUtils.radToDeg(turnedBy).toFixed(0)}° off the start`);
+  console.log(`  thirty seconds later, ${THREE.MathUtils.radToDeg(driftedFromSteered).toFixed(0)}° from where it was left`);
+  console.log(`  and still      ${THREE.MathUtils.radToDeg(backToStart).toFixed(0)}° off the start`);
+}
+
 console.log("\nthe units");
 {
   // Each unit's turn scale has to actually reach it. A scale nothing reads is
