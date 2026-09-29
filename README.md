@@ -263,10 +263,10 @@ used — so that black still reads as *space* rather than as a hole in the canva
 Everything brighter than that is something actually there: a star, the nebula,
 or stardust catching the light.
 
-This deliberately reverses the design system's "space is deep blue, never
-black". That was a considered instruction, not an oversight, and
-`design-system/space-and-craft.md` should be updated to match rather than left
-to contradict the code.
+This reverses what the design system originally said — "space is deep blue,
+never black" — deliberately, and `space-and-craft.md` has been updated to
+match, with the old rule recorded beside the new one. The first version left
+the sky a milky navy with the stars washing out against it.
 
 ## The diorama pass
 

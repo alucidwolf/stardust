@@ -30,7 +30,13 @@ export const SECTOR = {
 } as const;
 
 export const PALETTE = {
-  /** Space is deep blue, never black. */
+  /**
+   * The sky, and the darkest token in the set.
+   *
+   * Still the sector's own blue, just far enough down that nothing reads it as
+   * blue on its own — so everything brighter than it is something actually
+   * there rather than the background having an opinion.
+   */
   void: 0x070a14,
   void2: 0x0c1120,
   starCool: 0xcfe3ff,

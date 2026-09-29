@@ -5,8 +5,8 @@ These are the 3D rules for the sector, the four units and everything drifting pa
 ## The scene is a diorama in space
 
 - **Shallow depth of field.** Keep Currents' diorama pass, with focus following your unit, so the scene reads as a model on a table.
-- **Space is deep blue, never black.** The far field is `void-2`, with `nebula-violet` or `nebula-teal` as one soft body per sector. Depth reads as bluer and dustier, the space version of "depth reads bluer, not darker".
-- **One key light.** A distant star, neutral to faintly warm (`star-warm`). Add a cool fill from the nebula side. As in Currents, avoid a warm key against a cool ambient.
+- **Space is near enough to black, and the stars and the nebula are the only light in it.** The far field is `void`, the darkest token in the set — still the sector's own blue, just far enough down that nothing reads it as blue on its own. Everything brighter than that is something actually there: a star, the nebula, or stardust catching the light. One soft body per sector, `nebula-violet` or `nebula-teal`, and depth still reads as bluer and dustier rather than darker; there is simply very little above it to read against. *(This reverses an earlier rule that space should be deep blue and never black. The earlier version left the sky a milky navy with the stars washing out against it.)*
+- **One key light, and the nebula.** A distant star, neutral to faintly warm (`star-warm`), with a cool fill from the nebula's side. What ambient there is should be the nebula too — coloured from it, aimed from its side of the sky, and weak. A strong sky-coloured ambient lifts every surface whether or not anything is shining on it, and in space that reads immediately as a lamp just off camera. Enough that an unlit plate is a shape rather than a silhouette, and no more. As in Currents, avoid a warm key against a cool ambient.
 - **Stars have two layers.** A dense far field of `star-cool` points, and a sparse near layer of `star-warm` four-point glints that parallax past. The logo's streaks become speed lines: short `star-cool` streaks aligned with your velocity. There are only a few, and only while you're turning or boosting.
 
 ## Units: how the mechs and ships are designed
@@ -44,4 +44,5 @@ Keep it calm, but give the UI the Flash-era click: a soft mechanical tick on hov
 - Don't use weapons, explosions, damage or HUD targeting reticles. The instruments are for flying, not fighting.
 - Don't use lens flares on every light. The logo's single flare is the benchmark, one per scene at most.
 - Don't let a nebula fill the whole screen, and don't use purple-blue gradients.
+- Don't place the nebula anywhere on the circle. Now that it's one of only two light sources, a bearing drawn from the full 360° leaves it behind your shoulder most of the time — and because it tints the fill light too, the sector quietly loses its colour without ever showing you why. Draw the bearing from the arc you can see from a standing start. It should still be something you can turn away from; it just shouldn't start that way.
 - Don't copy any franchise unit, emblem or colour scheme exactly. Stardust's units share a language, not a lineage.
