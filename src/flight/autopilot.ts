@@ -44,33 +44,63 @@ export class Autopilot {
     // Each wave starts somewhere different, so two sectors with the same seed
     // for other purposes do not fly identically.
     this.phase = [rng(), rng(), rng(), rng()].map((v) => v * Math.PI * 2);
+
+    /*
+      Start the deviation from where the waves already are.
+
+      Without this the baseline is zero while the waves are not, so the very
+      first command is the full wave value — up to a hundred and ninety degrees
+      away — and the ship leaves the launch bay hauling itself round at the
+      autopilot's maximum rate to reach a heading nobody asked for. It settles
+      after a few seconds and so it reads as a one-off lurch at startup rather
+      than as a bug, which is exactly why it survived.
+    */
+    const opening = this.wave(0);
+    this.baseWaveYaw = opening.yaw;
+    this.baseWavePitch = opening.pitch;
   }
 
   /**
    * How far off the baseline the waves are asking to be, at time `t`.
    *
-   * Four periods, none a simple multiple of another, so their sum does not
+   * Periods chosen not to share a common multiple, so their sum does not
    * repeat within any session anybody will sit through.
    *
-   * The amplitudes are small and deliberately so. They started five times
-   * larger, from a version where the autopilot was the only thing flying and
-   * a heading nobody had chosen could swing as far as it liked. Once letting
-   * go of the stick meant *keeping* the heading you had just set, a wander
-   * that wide stopped reading as drift and started reading as the ship
-   * disagreeing with you — better than steering back to the start, but only
-   * just. A turn should still be there half a minute later.
+   * **Amplitude decides where it can go; frequency decides how fast it gets
+   * there.** That separation is the whole design, and the two have been set
+   * wrongly in both directions already.
    *
-   * Together these swing the heading about forty degrees either side over the
-   * course of several minutes, at well under a degree a second.
+   * The first version swung far and fast, which read as the ship disagreeing
+   * with the pilot. The fix cut the amplitudes to a fifth — and cut the wrong
+   * thing. It made the turns gentle, but it also fenced the heading into a
+   * forty-degree cone it could never leave, so left alone the ship flew in
+   * very nearly a straight line for ever and explored nothing.
+   *
+   * These sum to about two hundred degrees, which is more than half a circle:
+   * given long enough the nose can come to point anywhere at all, so the
+   * sector genuinely opens up rather than unrolling along one corridor. And
+   * because each amplitude is paired with a very low frequency, the fastest
+   * the heading can swing is under two degrees a second — slower than the
+   * arrow keys by a factor of six, and slow enough that watching it happen is
+   * not the same as noticing it happen.
+   *
+   * The constraint that forced the amplitudes down in the first place is met
+   * elsewhere now: steering hands the pilot the stick and keeps it there, so
+   * a heading they chose is held exactly until they ask for the autopilot
+   * back. This no longer has to be timid in order to be polite.
    */
   private wave(t: number): { yaw: number; pitch: number } {
     return {
       yaw:
-        Math.sin(t * 0.035 + this.phase[0]!) * 0.22 +
-        Math.sin(t * 0.0075 + this.phase[1]!) * 0.5,
+        Math.sin(t * 0.021 + this.phase[0]!) * 0.7 +
+        Math.sin(t * 0.0083 + this.phase[1]!) * 1.2 +
+        Math.sin(t * 0.0037 + this.phase[2]!) * 1.7,
+      // Pitch stays small. There is nothing generated far above or below the
+      // lane, so a nose that wanders vertically the way the heading does would
+      // spend the session climbing out of the sector.
       pitch:
-        Math.sin(t * 0.029 + this.phase[2]!) * 0.1 +
-        Math.sin(t * 0.011 + this.phase[3]!) * 0.07,
+        Math.sin(t * 0.017 + this.phase[3]!) * 0.12 +
+        Math.sin(t * 0.0061 + this.phase[0]!) * 0.09,
     };
   }
 

@@ -24,7 +24,9 @@
  */
 
 import * as THREE from "three";
-import { FLIGHT } from "../src/core/config";
+import { CAMERA, FLIGHT } from "../src/core/config";
+import { CameraRig } from "../src/control/cameraRig";
+import type { Input } from "../src/control/input";
 import { trimCommand } from "../src/control/steering";
 import { Autopilot } from "../src/flight/autopilot";
 import { Pilot } from "../src/flight/pilot";
@@ -43,6 +45,34 @@ const DT = 1 / 60;
  * of this file is reached, and a `const` is not hoisted into life, only into
  * scope. */
 const UP = new THREE.Vector3(0, 1, 0);
+
+/**
+ * A pilot with their hands off everything.
+ *
+ * The camera rig reads input whether or not there is any, so the autopilot
+ * case needs something to read. Everything is zero and nothing is held, which
+ * is precisely the state being tested.
+ */
+function stubInput(): Input {
+  return {
+    dragX: 0,
+    dragY: 0,
+    wheel: 0,
+    steering: false,
+    recenter: false,
+    steerX: 0,
+    steerY: 0,
+    keySteering: false,
+    boosting: false,
+    ndcX: 0,
+    ndcY: 0,
+    idleTime: 0,
+    consume() {},
+    tick() {},
+    setSteeringEnabled() {},
+    dispose() {},
+  };
+}
 
 /**
  * Fly with a fixed steering intent and report where it went, in screen terms.
@@ -166,13 +196,19 @@ console.log("\nthe autopilot");
   const turns = Math.abs(netYaw) / (Math.PI * 2);
   check(turns < 6, `the heading never winds up (${turns.toFixed(1)} net turns in twenty minutes)`);
 
-  // The threshold follows from the design rather than from taste. The faster
-  // of the two heading waves has a period of about two and a half minutes, so
-  // twenty minutes is roughly eight cycles and sixteen changes of direction.
-  // Anything above about six proves it is oscillating rather than committed;
-  // demanding far more would only be demanding a twitchier autopilot than the
-  // one that was wanted.
-  check(reversals > 6, `it turns both ways (${reversals} reversals)`);
+  // The threshold follows from the design rather than from taste, and it has
+  // to be recomputed whenever the waves change — which is the whole reason to
+  // write the arithmetic down rather than just the number.
+  //
+  // The three heading waves now run at periods of about five, thirteen and
+  // twenty-eight minutes. Over twenty minutes the fastest turns over about
+  // four times, and the slower two mostly bias which way it is going rather
+  // than reversing it, so half a dozen changes of direction is what this
+  // design produces and does not indicate anything wrong.
+  //
+  // What the check is really asking is whether the heading ever changes its
+  // mind at all. A unit circling has one sign for twenty minutes flat.
+  check(reversals > 3, `it turns both ways (${reversals} reversals)`);
 
   // And it should still actually get somewhere, rather than being pinned.
   const displacement = pilot.position.distanceTo(start);
@@ -191,8 +227,54 @@ console.log("\nthe autopilot");
     `it stays in the lane (${pilot.position.y.toFixed(0)} off centre)`,
   );
 
+  /*
+    And it has to actually explore.
+
+    This is the other half of the same design, and it has been wrong in both
+    directions. A wander that swings far and fast reads as the ship
+    disagreeing with the pilot; a wander cut back until it is gentle can end up
+    fenced into a narrow cone it never leaves, flying very nearly straight for
+    ever. The second is harder to notice, because for the first minute it looks
+    exactly like calm.
+
+    So: over twenty minutes the nose has to have pointed somewhere genuinely
+    different from where it started, and it has to have covered a wide arc on
+    the way. Neither number is about speed — the rate is tested separately,
+    below.
+  */
+  const furthest = headings.reduce(
+    (worst, h) => Math.max(worst, headings[0]!.angleTo(h)),
+    0,
+  );
+  check(
+    furthest > 1.4,
+    `it goes somewhere new (${THREE.MathUtils.radToDeg(furthest).toFixed(0)}° from the opening heading at its furthest)`,
+  );
+  check(
+    spread > 2.0,
+    `it covers a wide arc (${THREE.MathUtils.radToDeg(spread).toFixed(0)}° spread)`,
+  );
+
+  // Gently, though. However far it goes, it may never get there quickly.
+  let fastest = 0;
+  {
+    const probe = new Pilot();
+    const probeAuto = new Autopilot(20250928);
+    let previous = probe.yaw;
+    for (let i = 0; i < steps; i++) {
+      const t = i * DT;
+      probe.update(DT, t, probeAuto.update(t, probe, 1));
+      fastest = Math.max(fastest, Math.abs(probe.yaw - previous) / DT);
+      previous = probe.yaw;
+    }
+  }
+  const fastestDeg = THREE.MathUtils.radToDeg(fastest);
+  check(fastestDeg < 4, `and never hurries (peak ${fastestDeg.toFixed(1)}°/s)`);
+
   console.log(`  net turn       ${turns.toFixed(1)} turns, ${reversals} reversals`);
   console.log(`  heading spread ${THREE.MathUtils.radToDeg(spread).toFixed(0)}°`);
+  console.log(`  furthest from opening heading ${THREE.MathUtils.radToDeg(furthest).toFixed(0)}°`);
+  console.log(`  peak turn rate ${fastestDeg.toFixed(1)}°/s`);
   console.log(`  displacement   ${displacement.toFixed(0)}`);
   console.log(`  drift off lane ${pilot.position.y.toFixed(0)}`);
 }
@@ -236,30 +318,55 @@ console.log("\nletting go");
 
   // Let go, and give it thirty seconds to misbehave.
   const t0 = steerSteps * DT;
-  const coastSteps = Math.round(30 / DT);
-  for (let i = 0; i < coastSteps; i++) {
+
+  /*
+    The invariant is continuity at the handover, not distance from the start.
+
+    An earlier version of this asserted that thirty seconds later the ship was
+    still far from the heading it began on. That was a fair test of the bug it
+    was written for — an autopilot which steered straight back to its own
+    bearing the instant the button came up — but it is the wrong invariant now
+    the autopilot is meant to explore. A wander that can eventually point
+    anywhere will sometimes wander back past where it started, and failing it
+    for that would be failing it for working.
+
+    What must be true is that nothing *jumps*. If the baseline is wrong, the
+    error shows up immediately and enormously, because the commanded heading is
+    somewhere else entirely and the pilot hauls toward it at its rate limit. One
+    second is long enough to catch that and far too short for honest drift to
+    account for it.
+  */
+  const oneSecond = new THREE.Vector3();
+  for (let i = 0; i < 1 / DT; i++) {
     const t = t0 + i * DT;
+    pilot.update(DT, t, autopilot.update(t, pilot, 1));
+  }
+  pilot.forward(oneSecond);
+  const jump = oneSecond.angleTo(steeredHeading);
+  check(
+    jump < 0.12,
+    `the handover moves nothing (${THREE.MathUtils.radToDeg(jump).toFixed(1)}° in the first second)`,
+  );
+
+  // Then the rest of the half minute, drifting as it is meant to.
+  for (let i = 0; i < 29 / DT; i++) {
+    const t = t0 + 1 + i * DT;
     pilot.update(DT, t, autopilot.update(t, pilot, 1));
   }
 
   const after = pilot.forward(new THREE.Vector3());
   const driftedFromSteered = after.angleTo(steeredHeading);
-  const backToStart = after.angleTo(startHeading);
 
-  // It is allowed to wander — that is the whole point of it — but it must
-  // wander from where it was left, not back to where it began.
-  check(
-    backToStart > turnedBy * 0.6,
-    `it does not creep back to the original heading (${THREE.MathUtils.radToDeg(backToStart).toFixed(0)}° away, was ${THREE.MathUtils.radToDeg(turnedBy).toFixed(0)}°)`,
-  );
+  // Gently, and from where it was left. Wide enough to be exploring, narrow
+  // enough that the turn you just made is still recognisably the one you made.
   check(
     driftedFromSteered < 1.2,
-    `it holds roughly the heading it was given (${THREE.MathUtils.radToDeg(driftedFromSteered).toFixed(0)}° of drift in thirty seconds)`,
+    `it drifts from where it was left rather than leaping (${THREE.MathUtils.radToDeg(driftedFromSteered).toFixed(0)}° in thirty seconds)`,
   );
 
   console.log(`  steered to     ${THREE.MathUtils.radToDeg(turnedBy).toFixed(0)}° off the start`);
+  console.log(`  first second   ${THREE.MathUtils.radToDeg(jump).toFixed(1)}° — no jump at the handover`);
   console.log(`  thirty seconds later, ${THREE.MathUtils.radToDeg(driftedFromSteered).toFixed(0)}° from where it was left`);
-  console.log(`  and still      ${THREE.MathUtils.radToDeg(backToStart).toFixed(0)}° off the start`);
 }
 
 console.log("\nthe units, on the arrow keys");
@@ -284,6 +391,66 @@ console.log("\nthe units, on the arrow keys");
     check(turned < 90, `${unit.name} trims rather than spinning (${turned.toFixed(0)}°)`);
     console.log(`  ${unit.name.padEnd(12)} ${turned.toFixed(0)}° in four seconds`);
   }
+}
+
+console.log("\nthe camera, through a long wander");
+{
+  /*
+    The camera has to stay behind the ship while the autopilot explores.
+
+    It trails on purpose — it swings round late through a turn, which is most
+    of what makes a turn feel like the ship moved rather than the world did —
+    and a trail is a lag, so the faster and more often the heading changes the
+    further behind it falls. That is fine at a gentle drift and would not be at
+    any speed; this check is what says which one the autopilot is.
+
+    Measured as the angle between where the ship is pointing and the line from
+    the camera to the ship. Zero is directly behind. It is allowed to lag, but
+    it may never swing round to the side, and it must never end up in front.
+  */
+  const pilot = new Pilot();
+  const autopilot = new Autopilot(20250928);
+  const rig = new CameraRig(16 / 9);
+  const input = stubInput();
+  rig.snapBehind();
+
+  const toShip = new THREE.Vector3();
+  const facing = new THREE.Vector3();
+  let worstAngle = 0;
+  let worstDistance = 0;
+  let closest = Infinity;
+
+  const minutes = 8;
+  for (let i = 0; i < (minutes * 60) / DT; i++) {
+    const t = i * DT;
+    pilot.update(DT, t, autopilot.update(t, pilot, 1));
+    rig.update(DT, input, pilot);
+
+    // Skip the first second: the rig starts at the origin and flies to its
+    // station, and that one approach is not what this is measuring.
+    if (t < 1) continue;
+
+    toShip.copy(pilot.position).sub(rig.camera.position);
+    const distance = toShip.length();
+    toShip.normalize();
+    pilot.forward(facing);
+
+    // Angle between the ship's heading and the direction from camera to ship.
+    worstAngle = Math.max(worstAngle, facing.angleTo(toShip));
+    worstDistance = Math.max(worstDistance, distance);
+    closest = Math.min(closest, distance);
+  }
+
+  const worstDeg = THREE.MathUtils.radToDeg(worstAngle);
+  check(worstDeg < 45, `the camera stays behind the ship (worst ${worstDeg.toFixed(0)}° off)`);
+  check(closest > 6, `and never gets inside it (closest ${closest.toFixed(1)})`);
+  check(
+    worstDistance < CAMERA.maxDistance,
+    `and never falls behind (furthest ${worstDistance.toFixed(1)})`,
+  );
+
+  console.log(`  worst off-axis ${worstDeg.toFixed(0)}° over ${minutes} minutes`);
+  console.log(`  distance       ${closest.toFixed(1)} to ${worstDistance.toFixed(1)}`);
 }
 
 console.log("\nthe boost");

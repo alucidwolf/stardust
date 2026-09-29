@@ -123,17 +123,45 @@ is no reason to generate debris a kilometre above the lane nobody flies in.
 
 ## Flying itself
 
-Left alone, a unit keeps flying, and it has to stay interesting indefinitely.
-The failure that guards against is a unit which settles into a slow permanent
-circle — the natural resting state of any naive version, which picks a random
-heading offset and eases toward it, because the easing never quite arrives and
-so the offset never fully spends.
+Left alone, a unit explores. Slowly, randomly, and without ever hurrying: over
+twenty simulated minutes the nose comes to point a full **179° from where it
+started**, covering a 180° arc on the way, at a peak rate of **1.4° a second**.
+You can watch it happen without noticing it happen.
 
-So the heading is a **sum of slow sine waves at unrelated periods** rather than
-a target chased with a spring. Sines cannot wind up. `verify:steering` flies
-twenty simulated minutes and measures the **net turn**: 0.7 turns, reversing
-direction sixteen times. A circling autopilot would show tens of turns all one
-way.
+Two different failures are being avoided here, and the design has fallen into
+both.
+
+The first is a unit that settles into a slow permanent **circle** — the natural
+resting state of any naive version, which picks a random heading offset and
+eases toward it, because the easing never quite arrives and so the offset never
+fully spends. The answer is that the heading is a **sum of slow sine waves at
+unrelated periods** rather than a target chased with a spring. Sines cannot
+wind up. `verify:steering` measures the **net turn** over those twenty minutes:
+0.3 turns, changing direction six times. A circling autopilot would show tens
+of turns all one way.
+
+The second is subtler and arrived as the fix for something else. The wander was
+once far wider and was cut to a fifth to stop it feeling like the ship
+disagreeing with the pilot — which worked, and also fenced the heading into a
+40° cone it could never leave. Left alone the ship flew very nearly straight
+for ever and explored nothing, and for the first minute that looks exactly like
+calm.
+
+**Amplitude decides where it can go; frequency decides how fast it gets
+there**, and the fix had cut the wrong one. The waves now sum to about 200° —
+more than half a circle, so the nose can come to point anywhere at all — while
+each amplitude is paired with a low enough frequency that the heading can never
+swing faster than about two degrees a second. The constraint that forced the
+amplitudes down is met elsewhere now: steering hands the pilot the stick and
+keeps it there, so a heading they chose is held exactly until they ask for the
+autopilot back. It no longer has to be timid in order to be polite.
+
+The camera stays behind through all of it. It trails on purpose — swinging
+round late through a turn is most of what makes a turn feel like the ship moved
+rather than the world did — and a trail is a lag, so the faster the heading
+changes the further behind it falls. Over eight simulated minutes of wandering
+it never gets more than **15° off directly behind**, and never leaves its
+station.
 
 That check deliberately does **not** measure displacement, and the reason is
 worth keeping: a wanderer is a random walk, and a random walk's displacement
